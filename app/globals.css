@@ -3,13 +3,17 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  
+  /* Cores vibrantes do mercado */
+  --color-up: #00E676;
+  --color-down: #FF1744;
+  --color-neutral: #F59E0B;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-mono: var(--font-jetbrains-mono);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -41,4 +45,75 @@ body {
 
 .animate-ticker:hover {
   animation-play-state: paused;
+}
+
+/* Flash animations para mudanças de preço */
+@keyframes flash-up {
+  0% {
+    background-color: rgba(0, 230, 118, 0.25);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes flash-down {
+  0% {
+    background-color: rgba(255, 23, 68, 0.25);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes pulse-price {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+
+.flash-up {
+  animation: flash-up 350ms ease-out forwards;
+}
+
+.flash-down {
+  animation: flash-down 350ms ease-out forwards;
+}
+
+.pulse-price {
+  animation: pulse-price 300ms ease-in-out;
+}
+
+/* Fonte monoespaçada para preços e dados de mercado */
+.font-market {
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pesos específicos para dados de mercado */
+.font-market-regular {
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.font-market-medium {
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.font-market-semibold {
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }

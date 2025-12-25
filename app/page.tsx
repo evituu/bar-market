@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, TrendingUp } from "lucide-react";
+import { ArrowUpRight, TrendingUp, Settings } from "lucide-react";
 
 export default function Home() {
   return (
@@ -17,7 +17,7 @@ export default function Home() {
         </header>
 
         {/* Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-5xl">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl">
           {/* Menu Card */}
           <Link href="/menu" className="group">
             <article className="relative bg-[#111827] border border-[#1F2937] rounded-lg p-10 transition-all duration-300 hover:border-[#2563EB] hover:shadow-xl hover:shadow-[#2563EB]/10 hover:-translate-y-1">
@@ -79,6 +79,32 @@ export default function Home() {
 
               {/* Decorative Element */}
               <div className="absolute top-0 right-0 w-32 h-32 bg-[#16A34A]/5 rounded-bl-full blur-2xl -z-10 group-hover:bg-[#16A34A]/10 transition-colors" />
+            </article>
+          </Link>
+
+          {/* Admin Card */}
+          <Link href="/admin" className="group">
+            <article className="relative bg-[#111827] border border-[#1F2937] rounded-lg p-10 transition-all duration-300 hover:border-[#F59E0B] hover:shadow-xl hover:shadow-[#F59E0B]/10 hover:-translate-y-1">
+              {/* Icon */}
+              <div className="mb-6 inline-flex items-center justify-center w-14 h-14 rounded-lg bg-[#F59E0B]/10 text-[#F59E0B] group-hover:bg-[#F59E0B]/20 transition-colors">
+                <Settings className="w-7 h-7" />
+              </div>
+
+              {/* Content */}
+              <div className="mb-6">
+                <h2 className="text-2xl font-semibold text-[#E5E7EB] mb-3 group-hover:text-[#F59E0B] transition-colors">
+                  Admin Console
+                </h2>
+              </div>
+
+              {/* Action Indicator */}
+              <div className="flex items-center text-[#F59E0B] font-medium group-hover:gap-2 transition-all">
+                <span>Gerenciar</span>
+                <ArrowUpRight className="w-5 h-5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+              </div>
+
+              {/* Decorative Element */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-[#F59E0B]/5 rounded-bl-full blur-2xl -z-10 group-hover:bg-[#F59E0B]/10 transition-colors" />
             </article>
           </Link>
         </div>

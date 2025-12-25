@@ -32,12 +32,12 @@ export function TickerTape({ products }: TickerTapeProps) {
               className="flex items-center gap-3 px-6 py-3 border-r border-[#1F2937] whitespace-nowrap"
             >
               <span className="font-medium text-[#E5E7EB]">{product.name}</span>
-              <span className="font-bold text-[#E5E7EB] tabular-nums">
+              <span className="font-semibold text-[#E5E7EB] font-market-semibold">
                 {formatCurrency(product.currentPriceCents)}
               </span>
               <span className={`flex items-center gap-1 ${trendColor}`}>
                 <TrendIcon className="w-4 h-4" />
-                <span className="text-sm font-medium tabular-nums">
+                <span className="text-sm font-medium font-market-medium">
                   {formatPriceChange(product.priceChange)}
                 </span>
               </span>

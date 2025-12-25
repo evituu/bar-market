@@ -1,107 +1,552 @@
 # Arquitetura do Projeto Bar Market
 
+## Visão Geral
+
+Sistema de precificação dinâmica para bebidas inspirado em bolsa de valores, onde os preços variam em tempo real conforme a demanda. O projeto utiliza Next.js 16 com App Router, React 19, TypeScript e Tailwind CSS 4, priorizando uma experiência visual de terminal financeiro.
+
+---
+
 ## Arquitetura das Páginas
 
 ### Estrutura de Rotas (Next.js App Router)
 
 **1. Página Inicial (`/`)**
-- Arquivo: `app/page.tsx`
-- Status: Página template padrão do Next.js, sem implementação personalizada
-- Conteúdo: Interface de boas-vindas com links para documentação
+- **Arquivo**: `app/page.tsx`
+- **Status**: ✅ Implementada
+- **Descrição**: Landing page com três cards de navegação
+  - Card "Menu Interativo" → `/menu` (azul, ícone TrendingUp)
+  - Card "Telão ao Vivo" → `/telao` (verde, ícone Monitor)
+  - Card "Admin Console" → `/admin` (âmbar, ícone Settings)
+- **Design**: Fundo escuro (#0B0F14), cards com hover states, indicador "sistema ativo" com pulse
 
 **2. Página Menu (`/menu`)**
-- Arquivo: `app/menu/page.tsx`
-- Status: **Arquivo vazio** - Rota criada mas sem implementação
-- Pasta de componentes: `app/menu/_components/` (vazia)
-- Finalidade: Interface para clientes visualizarem e comprarem bebidas
+- **Arquivo**: `app/menu/page.tsx`
+- **Status**: 🚧 Em desenvolvimento (arquivo vazio)
+- **Pasta de componentes**: `app/menu/_components/` (vazia)
+- **Finalidade**: Interface para clientes visualizarem produtos e realizarem pedidos
+- **Features planejadas**:
+  - Catálogo de produtos por categoria
+  - Preços em tempo real
+  - Sistema de carrinho com lock de preços
+  - Confirmação de pedidos
 
 **3. Página Telão (`/telao`)**
-- Arquivo: `app/telao/page.tsx`
-- Status: **Arquivo vazio** - Rota criada mas sem implementação
-- Pasta de componentes: `app/telao/_components/` (vazia)
-- Finalidade: Display público mostrando cotações em tempo real
+- **Arquivo**: `app/telao/page.tsx`
+- **Status**: ✅ Implementada
+- **Pasta de componentes**: `app/telao/_components/`
+- **Finalidade**: Display público mostrando cotações em tempo real (estilo bolsa de valores)
+- **Layout**: `h-screen overflow-hidden` (sem scroll, layout fixo)
+- **Componentes**:
+  - `MarketHeader.tsx` - Header compacto estilo terminal
+  - `TickerTape.tsx` - Faixa animada de cotações
+  - `DrinkValueBoard.tsx` - Grid tabular por categoria (componente principal)
+  - `PriceFlash.tsx` - Wrapper para micro-highlight de atualização (flash verde/vermelho)
+  - `MarketRanking.tsx` - Top altas, quedas e mais negociados
+  - `PriceTicker.tsx` - Card individual de produto
 
-**4. API Routes (`/api`)**
-- Pasta: `app/api/`
-- Status: **Pasta vazia** - Sem endpoints implementados
-- Rotas planejadas (não implementadas):
+**4. Admin Console (`/admin`)**
+- **Arquivos**: `app/admin/page.tsx` e subpastas
+- **Status**: ✅ Implementado
+- **Pasta de componentes**: `app/admin/_components/`
+- **Finalidade**: Backoffice para gestão do mercado (produtos, categorias, monitoramento)
+- **Subpáginas**:
+  - `/admin` - Dashboard com estatísticas e rankings
+  - `/admin/products` - Lista de produtos com filtros
+  - `/admin/products/new` - Criar novo produto
+  - `/admin/products/[id]` - Editar produto existente
+  - `/admin/categories` - Gestão de categorias
+
+**5. API Routes (`/api`)**
+- **Pasta**: `app/api/`
+- **Status**: 🚧 Parcialmente implementadas
+- **Rotas implementadas**:
+  - `/api/admin/products` - GET (listar), POST (criar)
+  - `/api/admin/products/:id` - GET (detalhe), PATCH (editar), DELETE (remover)
+  - `/api/admin/products/:id/status` - PATCH (ativar/desativar)
+  - `/api/admin/categories` - GET (listar), POST (criar)
+  - `/api/admin/categories/:id` - PATCH (editar), DELETE (remover)
+- **Rotas planejadas**:
   - `/api/ordens/confirmar` - Confirmação de pedidos
-  - `/api/ordens/look` - Consulta de ordens
-  - `/api/stream/precos` - Stream de preços em tempo real
+  - `/api/ordens/look` - Consulta de ordens e locks
+  - `/api/stream/precos` - Server-Sent Events para preços em tempo real
 
-**5. Layout Global**
-- Arquivo: `app/layout.tsx`
-- Funcionalidades:
-  - Define metadados (title, description)
-  - Carrega fontes Geist Sans e Geist Mono
-  - Aplica classes CSS globais
+**6. Layout Global**
+- **Arquivo**: `app/layout.tsx`
+- **Funcionalidades**:
+  - Carrega JetBrains Mono local (pesos 400, 500, 600, 700)
+  - Define metadados (title: "Bar Market", description, lang: "pt-BR")
+  - Aplica variável CSS `--font-jetbrains-mono`
+
+---
+
+## Componentes do Telão (Detalhamento)
+
+### MarketHeader
+- **Tipo**: Client Component
+- **Função**: Header compacto com indicadores de mercado
+- **Elementos**:
+  - Logo + "Market Open" (JetBrains Mono)
+  - Contadores inline: ↑ Altas | ↓ Quedas | – Estáveis
+  - Hora atual (HH:MM:SS) e Tick #
+  - Indicador pulse verde "sistema ativo"
+- **Altura**: Fixa, compacta (~48px)
+
+### TickerTape
+- **Tipo**: Client Component
+- **Função**: Faixa horizontal com cotações animadas
+- **Animação**: Loop infinito (CSS keyframes), pausa no hover
+- **Conteúdo**: Nome | Preço | Ícone seta | Variação %
+- **Velocidade**: 30s por ciclo completo
+- **Posição**: Entre header e board principal
+
+### DrinkValueBoard
+- **Tipo**: Client Component
+- **Função**: Grid tabular principal (substituiu cards)
+- **Layout**: Grid dinâmico com colunas por categoria
+- **Lógica**:
+  - Agrupa produtos por `category`
+  - Ordena por maior variação absoluta
+  - Limita a 8 itens por coluna (calibrado para 1080p)
+- **Estrutura**:
+  - Título da categoria (header fixo)
+  - Linhas de produtos: Nome | Preço | Seta + Delta
+- **Cores**: 
+  - Verde (#00E676) alta (↑)
+  - Vermelho (#FF1744) queda (↓)
+  - Laranja (#F59E0B) neutro (=)
+- **Fonte**: JetBrains Mono para preços e deltas
+- **Features**:
+  - Integração com `PriceFlash` para micro-highlights
+  - Hover states para interatividade
+
+### PriceFlash
+- **Tipo**: Client Component (Wrapper)
+- **Função**: Detecta mudanças de preço e aplica flash visual temporário
+- **Comportamento**:
+  - Compara `currentValue` com `previousValue`
+  - Aplica classe `flash-up` (verde) ou `flash-down` (vermelho)
+  - Duração: 350ms com fade-out suave
+  - Micro-pulse no valor do preço (zoom 1x → 1.05x)
+- **Uso**: Envolve célula de preço no `DrinkValueBoard`
+- **Opacidade**: 25% para sutileza (não distrai)
+- **Objetivo**: Feedback visual de "tempo real" sem ser chamativo
+
+### MarketRanking
+- **Tipo**: Client Component
+- **Função**: Rankings em 3 painéis side-by-side
+- **Painéis**:
+  1. Maiores Altas (top 3, ordenado por `priceChange`)
+  2. Maiores Quedas (top 3, ordenado por `priceChange` negativo)
+  3. Mais Negociados (top 3, proxy por `currentPriceCents`)
+
+### PriceTicker
+- **Tipo**: Client Component
+- **Função**: Card individual de produto (usado no protótipo inicial)
+- **Status**: Substituído por `DrinkValueBoard` no telão atual
+- **Uso futuro**: Pode ser reaproveitado no `/menu`
+
+---
+
+## Componentes do Admin Console
+
+### AdminLayout
+- **Tipo**: Client Component
+- **Função**: Layout wrapper para todas as páginas admin
+- **Elementos**:
+  - Header fixo com navegação (Dashboard, Produtos, Categorias)
+  - Logo "Admin Console" com ícone Activity
+  - Status "Mercado Ativo" com pulse verde
+  - Botão voltar para home
+- **Navegação**: Highlight da página ativa em laranja (#F59E0B)
+
+### StatCard
+- **Tipo**: Client Component
+- **Função**: Card de estatística com ícone
+- **Props**: title, value, icon (Lucide), color, subtitle (opcional)
+- **Uso**: Dashboard para KPIs (produtos ativos, categorias, altas/quedas, tick)
+
+### RankingPanel
+- **Tipo**: Client Component
+- **Função**: Painel de ranking (gainers/losers)
+- **Props**: title, products, type ('gainers' | 'losers'), maxItems
+- **Layout**: Lista ordenada com posição (#1, #2, #3...), nome, categoria, preço, variação
+- **Border**: Borda lateral colorida (verde para gainers, vermelho para losers)
+
+### MarketTable
+- **Tipo**: Client Component
+- **Função**: Tabela geral de mercado com filtros
+- **Features**:
+  - Busca por nome/SKU
+  - Filtro por categoria (dropdown)
+  - Colunas: Produto, Categoria, Base, Atual, Variação, Status
+  - Contador de resultados no footer
+- **Uso**: Dashboard para visão geral
+
+### ProductsTable
+- **Tipo**: Client Component
+- **Função**: Tabela completa de gestão de produtos
+- **Features**:
+  - Busca, filtro por categoria e status (ativo/inativo)
+  - Colunas: Produto, Categoria, Base, Atual, Floor, Cap, Var (Δ), Status, Ações
+  - Ações: Editar (ícone Pencil), Ativar/Desativar (toggle)
+  - Botão "Novo Produto" no header
+- **Uso**: `/admin/products`
+
+### ProductForm
+- **Tipo**: Client Component
+- **Função**: Formulário de criar/editar produto
+- **Campos**:
+  - Nome, SKU, Categoria (select), Descrição (textarea)
+  - Preço Base, Floor (mínimo), Cap (máximo) - com R$ prefix
+  - Status (toggle Ativo/Inativo)
+- **Validações**:
+  - floor ≤ base ≤ cap
+  - floor < cap
+  - Campos obrigatórios
+- **Preview**: Barra visual do intervalo de oscilação (floor → base → cap)
+- **Uso**: `/admin/products/new` e `/admin/products/[id]`
+
+### CategoriesTable
+- **Tipo**: Client Component
+- **Função**: Tabela de gestão de categorias
+- **Features**:
+  - Criar nova categoria (inline form)
+  - Editar nome inline (ativa campo de texto)
+  - Ações: Editar, Ativar/Desativar, Excluir
+  - Drag handle (GripVertical) para reordenação futura
+  - Proteção: não permite excluir categoria com produtos
+  - Contagem de produtos por categoria
+- **Uso**: `/admin/categories`
 
 ---
 
 ## Tecnologias Utilizadas
 
 ### Core Framework
-- **Next.js 16.1.1** (App Router) - Framework React com SSR/SSG
-- **React 19.2.3** - Biblioteca UI com Server Components
-- **TypeScript 5.x** - Tipagem estática para maior segurança de código
+- **Next.js 16.1.1** (App Router) - SSR, Server Components
+- **React 19.2.3** - Biblioteca UI
+- **TypeScript 5.x** - Tipagem estática
 
 ### Estilização
-- **Tailwind CSS 4.x** - Framework CSS utility-first
-- **@tailwindcss/postcss** - Processador CSS para Tailwind
-- **PostCSS** - Transformação e otimização de CSS
+- **Tailwind CSS 4.x** - Utility-first CSS
+- **@tailwindcss/postcss** - Processador
+- **PostCSS** - Transformação de CSS
+
+### UI e Ícones
+- **lucide-react** - Ícones (Activity, Clock, TrendingUp, TrendingDown, etc.)
+- **JetBrains Mono** - Fonte monoespaçada local (terminal financeiro)
 
 ### Desenvolvimento
-- **ESLint 9.x** - Linter de código para qualidade
-- **eslint-config-next** - Configuração ESLint específica para Next.js
+- **ESLint 9.x** - Linter
+- **eslint-config-next** - Configuração Next.js
 
-### Fontes
-- **Geist Sans** - Fonte principal do projeto (Google Fonts)
-- **Geist Mono** - Fonte monoespaçada para código (Google Fonts)
+---
+
+## Design System
+
+### Paleta de Cores
+
+**Base (Terminal Financeiro)**
+- Background principal: `#0B0F14` (preto grafite)
+- Background secundário: `#111827` (cinza escuro)
+- Borders: `#1F2937`, `#374151`
+
+**Texto**
+- Primary: `#E5E7EB` (branco suave)
+- Secondary: `#9CA3AF` (cinza claro)
+
+**Cores Funcionais (Estado do Mercado)**
+- Alta (UP): `#00E676` (verde vibrante)
+- Queda (DOWN): `#FF1744` (vermelho vibrante)
+- Neutro: `#F59E0B` (âmbar)
+- Ação (CTA): `#2563EB` (azul financeiro)
+- Sucesso: `#22C55E`
+- Erro: `#EF4444`
+- Disabled: `#374151`
+
+### Tipografia
+
+**Fonte Principal**: JetBrains Mono
+- **Uso**: Todos os dados numéricos, preços, variações, hora, tick
+- **Pesos disponíveis**: 400 (regular), 500 (medium), 600 (semibold), 700 (bold)
+- **Classes utilitárias**:
+  - `.font-market` - Base + tabular-nums
+  - `.font-market-medium` - Peso 500
+  - `.font-market-semibold` - Peso 600
+
+**Hierarquia no Telão**:
+- Preços principais: font-weight 600 (semibold)
+- Variações e deltas: font-weight 500 (medium)
+- Hora, tick, labels: font-weight 400 (regular)
+
+**Alinhamento**:
+- Preços: Sempre à direita (`text-right`)
+- Números: `tabular-nums` para alinhamento consistente
+
+### Animações
+
+**Ticker Tape**
+```css
+@keyframes ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+```
+
+**Flash de Mudança de Preço (Micro-Highlight)**
+```css
+@keyframes flash-up {
+  0% { background-color: rgba(0, 230, 118, 0.25); }
+  100% { background-color: transparent; }
+}
+
+@keyframes flash-down {
+  0% { background-color: rgba(255, 23, 68, 0.25); }
+  100% { background-color: transparent; }
+}
+
+@keyframes pulse-price {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 1; }
+}
+```
+
+**Aplicação**:
+- `.flash-up` - 350ms ease-out (verde, alta)
+- `.flash-down` - 350ms ease-out (vermelho, queda)
+- `.pulse-price` - 300ms ease-in-out (zoom no preço)
+
+---
+
+## Sistema de Dados (Mocks)
+
+### Estrutura de Arquivos
+
+```
+data/
+├── index.ts                 # Barrel export + helpers
+├── products.mock.ts         # 30 produtos em 4 categorias
+├── priceState.mock.ts       # Estado atual de preços
+├── pricingConfig.mock.ts    # Config do motor + eventos
+└── tradeEvents.mock.ts      # Ordens, locks, eventos
+```
+
+### Interfaces TypeScript
+
+**Produtos e Preços**
+```typescript
+Product              // Catálogo com floor/base/cap
+PriceState          // Snapshot atual (priceCents, prevPriceCents, tickSeq)
+PriceHistory        // Histórico de cotações
+ProductWithPrice    // Product + preço atual + variação
+```
+
+**Pedidos e Mercado**
+```typescript
+Order, OrderItem    // Sistema de pedidos
+PriceLock          // Travamento temporário
+TradeEvent         // Eventos de demanda
+Table, Session     // Gestão de mesas/comandas
+```
+
+**Configuração**
+```typescript
+PricingConfig      // tick, decay, sensitivity, baseline
+MarketEvent        // CRASH | PROMO | FREEZE
+```
+
+### Produtos Mock (35 itens)
+
+- **Chopes**: 8 produtos (Pilsen 300ml, Chopp Colorado, Chopp Baden Baden, Chopp Eisenbahn, Chopp Brahma, Chopp Heineken, Chopp Budweiser, Pilsen 500ml)
+- **Cervejas**: 8 produtos (IPA Lata, Heineken, Stella Artois, Corona, Budweiser, Brahma Duplo Malte, Eisenbahn Pilsen, Skol Beats)
+- **Drinks**: 8 produtos (Gin Tônica, Caipirinha de Limão, Mojito, Cuba Libre, Caipirinha de Morango, Aperol Spritz, Margarita, Vodka Red Bull)
+- **Shots**: 8 produtos (Tequila Shot, Jägermeister, Vodka Shot, Cachaça Shot, Whisky Shot, Sambuca, Absinto, Licor Beirão)
+- **Promoções**: 3 produtos (combo examples - categoria legacy)
+
+### Helpers Utilitários
+
+```typescript
+getProductsWithPrices()       // Enriquece produtos com cotação
+getProductById(id)            // Busca por ID
+getProductBySku(sku)          // Busca por SKU
+getProductsByCategory(cat)    // Filtra por categoria
+formatCurrency(cents)         // Formata para BRL
+formatPriceChange(change)     // Formata variação %
+```
 
 ---
 
 ## Padrões de Arquitetura
 
 ### Organização de Arquivos
-- **App Router**: Roteamento baseado em sistema de arquivos (`app/`)
-- **Server Components**: Padrão por padrão no Next.js 16
-- **Colocação de Componentes**: Componentes privados em pastas `_components/`
+- **App Router**: Roteamento por sistema de arquivos (`app/`)
+- **Server Components**: Padrão (páginas)
+- **Client Components**: Explícito com `'use client'` (componentes interativos)
+- **Colocação**: Componentes privados em `_components/`
 
 ### Convenções de Código
-- TypeScript para todo o código
-- Componentes React funcionais com hooks
-- CSS Modules através do Tailwind CSS
-- Server Components para páginas (Client Components quando necessário)
+- TypeScript em 100% do código
+- Componentes React funcionais
+- Hooks para estado (useState, useMemo)
+- Props tipadas com interfaces
+- Barrel exports (`index.ts`) para módulos
+
+### CSS e Estilização
+- Tailwind utility classes
+- Classes customizadas em `globals.css` para animações
+- Variáveis CSS para cores (`--font-jetbrains-mono`)
+- Evita CSS inline complexo
 
 ---
 
 ## Estado Atual do Projeto
 
 ### ✅ Implementado
-- Estrutura básica do Next.js 16 com App Router
-- Configuração de TypeScript
-- Setup do Tailwind CSS 4
-- Layout global com fontes personalizadas
-- Estrutura de pastas para rotas principais
 
-### ❌ Pendente de Implementação
-- **Página Menu**: Interface de compra de bebidas
-- **Página Telão**: Display de cotações em tempo real
-- **APIs**: Endpoints para pedidos e streaming de preços
-- **Motor de Precificação**: Lógica de variação dinâmica de preços
-- **Banco de Dados**: Armazenamento de produtos, pedidos e histórico
-- **Sistema de Autenticação**: Se necessário para clientes/admin
-- **WebSockets/SSE**: Para atualização de preços em tempo real
-- **Componentes UI**: Todos os componentes personalizados do projeto
+**Interface**
+- [x] Página inicial com navegação (3 cards: Menu, Telão, Admin)
+- [x] Telão completo com cotações em tempo real (mock)
+- [x] Design system (cores, fontes, animações)
+- [x] Layout fixo sem scroll (h-screen)
+- [x] Componentes Telão: MarketHeader, TickerTape, DrinkValueBoard, PriceFlash, MarketRanking
+- [x] Admin Console completo:
+  - [x] Dashboard com estatísticas e rankings
+  - [x] Gestão de produtos (listar, criar, editar)
+  - [x] Gestão de categorias
+  - [x] Componentes admin: AdminLayout, StatCard, RankingPanel, MarketTable, ProductsTable, ProductForm, CategoriesTable
+
+**Dados**
+- [x] 35 produtos mock em 5 categorias
+- [x] Sistema de tipos TypeScript completo
+- [x] Helpers de formatação e consulta
+- [x] Mock de price state (35 entradas), config, eventos
+- [x] Indicadores de variação: ↑ (alta), ↓ (queda), = (neutro)
+
+**Backend/API**
+- [x] API Routes para admin:
+  - [x] `/api/admin/products` - GET (listar), POST (criar)
+  - [x] `/api/admin/products/:id` - GET, PATCH, DELETE
+  - [x] `/api/admin/products/:id/status` - PATCH
+  - [x] `/api/admin/categories` - GET, POST
+  - [x] Validações: floor ≤ base ≤ cap
+
+**Infraestrutura**
+- [x] Next.js 16 + React 19 + TypeScript
+- [x] Tailwind CSS 4
+- [x] JetBrains Mono local (4 pesos)
+- [x] ESLint configurado
+- [x] Micro-highlight system (PriceFlash)
+
+### 🚧 Pendente de Implementação
+
+**Interface**
+- [ ] Página Menu (`/menu`) - Interface de compra
+- [ ] Componentes do menu (catálogo, carrinho, confirmação)
+- [ ] Responsividade mobile do menu
+
+**Backend**
+- [ ] API Routes para pedidos:
+  - [ ] `/api/ordens/confirmar` - POST
+  - [ ] `/api/ordens/look` - GET
+  - [ ] `/api/stream/precos` - SSE
+- [ ] Motor de precificação real (algoritmo de variação)
+- [ ] Banco de dados (Postgres + Redis)
+- [ ] WebSockets ou Server-Sent Events
+- [ ] Sistema de autenticação (mesas/QR codes)
+
+**Features**
+- [ ] Lock de preços com expiração
+- [ ] Eventos de mercado (crash, promo, freeze)
+- [ ] Histórico de preços para gráficos
+- [ ] Persistência real (atualmente apenas mock)
+- [ ] Autenticação admin (Basic Auth ou NextAuth)
 
 ---
 
-## Próximos Passos Sugeridos
+## Próximos Passos Técnicos
 
-1. **Definir Modelo de Dados**: Estrutura de produtos, pedidos e preços
-2. **Implementar Motor de Precificação**: Algoritmo de variação de preços
-3. **Criar API Routes**: Endpoints para operações de pedidos e consultas
-4. **Desenvolver Página Menu**: Interface interativa para clientes
-5. **Desenvolver Página Telão**: Display público com atualizações em tempo real
-6. **Configurar Banco de Dados**: PostgreSQL, MongoDB ou similar
-7. **Implementar Streaming**: WebSockets ou Server-Sent Events para preços
+### Fase 1: Página Menu
+1. Criar layout responsivo do menu
+2. Implementar catálogo de produtos com preços em tempo real
+3. Sistema de carrinho com lock de preços
+4. Fluxo de confirmação de pedido
+5. Integração com PriceFlash para feedback visual
+
+### Fase 2: API e Backend Real
+1. Implementar `/api/ordens/confirmar` (POST)
+2. Implementar `/api/ordens/look` (GET)
+3. Implementar `/api/stream/precos` (SSE)
+4. Configurar Postgres (schema SQL já documentado)
+5. Configurar Redis para locks e cache
+6. Migrar API admin para persistência real
+
+### Fase 3: Motor de Precificação
+1. Implementar algoritmo de variação (decay, sensitivity)
+2. Processamento de trade events
+3. Cálculo de tick a cada X segundos
+4. Atualização via SSE para clientes (telão + menu)
+5. Integração com PriceFlash no telão
+
+### Fase 4: Produção
+1. Autenticação de mesas (QR codes)
+2. Autenticação admin (Basic Auth ou NextAuth)
+3. Logs e auditoria
+4. Deploy (Vercel + Supabase/Railway)
+5. Monitoramento de performance
+
+---
+
+## Decisões de Design (Rationale)
+
+### Por que JetBrains Mono?
+- Monoespaçada: alinhamento perfeito de números
+- Legibilidade à distância (3-5 metros)
+- Reforça estética de terminal financeiro
+- Tabular nums nativo
+
+### Por que layout fixo (h-screen) no telão?
+- Experiência de TV/display público
+- Cliente precisa escanear informação em 2 segundos
+- Evita distrações de scroll
+- Maximiza densidade de informação visível
+
+### Por que cores vibrantes (#00E676, #FF1744)?
+- Alto contraste em ambiente escuro (bar)
+- Diferenciação instantânea alta/queda
+- Estética de mercado financeiro (não cassino)
+- Legibilidade à distância
+
+### Por que grid tabular em vez de cards?
+- Maior densidade de informação
+- Leitura mais rápida (placar)
+- Escala melhor para 35+ produtos
+- Mais próximo de terminal real
+
+### Por que micro-highlight (PriceFlash)?
+- Feedback visual de "tempo real" sem distrair
+- Durações curtas (300-350ms) evitam cansaço visual
+- Opacidade baixa (25%) mantém legibilidade
+- Reforça sensação de mercado vivo para clientes
+
+### Por que Admin Console separado?
+- Backoffice não deve competir visualmente com telão
+- Permite scroll (gestão precisa de mais espaço)
+- Funcionalidades complexas (CRUD, validações)
+- Preparado para autenticação futura
+
+### Por que validação floor ≤ base ≤ cap?
+- Garante integridade dos limites de oscilação
+- Evita configurações inválidas no motor de preços
+- Previne bugs em produção (preços impossíveis)
+
+---
+
+## Referências de Design
+
+O telão foi inspirado em:
+- Bloomberg Terminal
+- TradingView
+- Pregões de bolsa de valores (NYSE, B3)
+- "Drink Value Board" de bares com preço dinâmico
+
+Princípio: **Funcionalidade > Decoração**
