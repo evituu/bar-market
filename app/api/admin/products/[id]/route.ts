@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MOCK_PRODUCTS, MOCK_PRICE_STATE } from '@/data';
+import { validateTicker } from '@/lib/utils/ticker';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -48,6 +49,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const {
       name,
       sku,
+      ticker,
+      tickerSource,
       description,
       category,
       basePriceCents,
@@ -55,6 +58,35 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       priceCapCents,
       isActive,
     } = body;
+
+    // Valida ticker se fornecido
+    if (ticker !== undefined) {
+      if (!ticker) {
+        return NextResponse.json(
+          { error: 'Ticker não pode ser vazio' },
+          { status: 400 }
+        );
+      }
+
+      const tickerValidation = validateTicker(ticker);
+      if (!tickerValidation.valid) {
+        return NextResponse.json(
+          { error: tickerValidation.error },
+          { status: 400 }
+        );
+      }
+
+      // Verifica se ticker já existe (excluindo o próprio produto)
+      const tickerExists = MOCK_PRODUCTS.some(
+        (p) => p.id !== id && p.ticker.toUpperCase() === ticker.toUpperCase()
+      );
+      if (tickerExists) {
+        return NextResponse.json(
+          { error: 'Ticker já está em uso' },
+          { status: 400 }
+        );
+      }
+    }
 
     // Validações de preço se fornecidos
     const floor = priceFloorCents ?? product.priceFloorCents;
@@ -87,12 +119,15 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       ...product,
       name: name ?? product.name,
       sku: sku ?? product.sku,
+      ticker: ticker ? ticker.toUpperCase() : product.ticker,
+      tickerSource: tickerSource ?? product.tickerSource,
       description: description ?? product.description,
       category: category ?? product.category,
       basePriceCents: base,
       priceFloorCents: floor,
       priceCapCents: cap,
       isActive: isActive ?? product.isActive,
+      updatedAt: new Date(),
     };
 
     return NextResponse.json({ product: updatedProduct });

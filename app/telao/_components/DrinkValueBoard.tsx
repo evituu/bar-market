@@ -125,10 +125,17 @@ function ProductRow({ product, isLast }: ProductRowProps) {
         hover:bg-[#1F2937]/50
       `}
     >
-      {/* Nome do Produto */}
-      <span className="text-sm font-medium text-[#E5E7EB] truncate flex-1 pr-3">
-        {product.name}
-      </span>
+      {/* Ticker + Nome do Produto */}
+      <div className="flex flex-col gap-0.5 flex-1 pr-3 min-w-0">
+        {/* Ticker em destaque */}
+        <span className={`text-base font-bold font-market-semibold ${priceColor} tracking-wide`}>
+          {product.ticker}
+        </span>
+        {/* Nome secundário */}
+        <span className="text-xs font-medium text-[#9CA3AF] truncate">
+          {product.name}
+        </span>
+      </div>
 
       {/* Preço + Variação com Flash */}
       <PriceFlash

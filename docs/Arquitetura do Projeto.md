@@ -58,13 +58,14 @@ Sistema de precificação dinâmica para bebidas inspirado em bolsa de valores, 
 - **Arquivos**: `app/admin/page.tsx` e subpastas
 - **Status**: ✅ Implementado
 - **Pasta de componentes**: `app/admin/_components/`
-- **Finalidade**: Backoffice para gestão do mercado (produtos, categorias, monitoramento)
+- **Finalidade**: Backoffice para gestão do mercado (produtos, categorias, pedidos, monitoramento)
 - **Subpáginas**:
-  - `/admin` - Dashboard com estatísticas e rankings
+  - `/admin` - Dashboard com estatísticas, rankings e botões de eventos de mercado
   - `/admin/products` - Lista de produtos com filtros
   - `/admin/products/new` - Criar novo produto
   - `/admin/products/[id]` - Editar produto existente
   - `/admin/categories` - Gestão de categorias
+  - `/admin/pedidos` - **Painel operacional de pedidos em tempo real (Kanban)**
 
 **5. API Routes (`/api`)**
 - **Pasta**: `app/api/`
@@ -77,10 +78,12 @@ Sistema de precificação dinâmica para bebidas inspirado em bolsa de valores, 
   - `/api/admin/categories/:id` - PATCH (editar), DELETE (remover)
   - `/api/stream/precos` - GET com SSE ou fallback polling (3s tick)
   - `/api/orders/lock` - POST (cria price lock com 15s TTL)
-  - `/api/orders/confirm` - POST (confirma pedido se lock válido)
+  - `/api/orders/confirm` - POST (confirma pedido se lock válido + salva em ordersStore)
+  - `/api/admin/orders` - GET (listar pedidos com filtros: status, área, mesa)
+  - `/api/admin/orders/:id/status` - PATCH (atualizar status: NEW → IN_PROGRESS → READY → DELIVERED)
 - **Rotas planejadas**:
   - `/api/orders/history` - Histórico de pedidos do cliente
-  - `/api/orders/validate` - Validação de pedido
+  - `/api/admin/orders/stream` - SSE para pedidos em tempo real
 
 **6. Layout Global**
 - **Arquivo**: `app/layout.tsx`
@@ -468,11 +471,223 @@ data: {
 
 **Implementação**:
 - Remove lock após sucesso (one-time use)
-- Cria registro de Order (future: salva em DB)
+- Cria registro de Order via `createOrder()` do ordersStore
+- Pedido fica disponível em `/admin/pedidos` automaticamente
+
+---
+
+## Sistema de Pedidos Operacional (Kanban)
+
+### Página `/admin/pedidos`
+
+**Arquivo**: `app/admin/pedidos/page.tsx`
+
+**Propósito**: Painel operacional em tempo real para equipe de balcão, cozinha e garçons
+
+**Componentes**:
+- `OrderCard.tsx` - Card individual de pedido com ações
+- `OrdersKanban.tsx` - Board Kanban com 4 colunas por status
+- `OrdersFilters.tsx` - Filtros (mesa, área de preparo, entregues)
+- `index.ts` - Barrel exports
+
+### Modelo de Status (OrderStatus)
+
+```typescript
+type OrderStatus = 'NEW' | 'IN_PROGRESS' | 'READY' | 'DELIVERED' | 'CANCELED';
+```
+
+**Transições Válidas**:
+```
+NEW → IN_PROGRESS (Iniciar Preparo)
+IN_PROGRESS → READY (Marcar Pronto)
+READY → DELIVERED (Entregar)
+READY → IN_PROGRESS (Voltar para preparo, se necessário)
+NEW | IN_PROGRESS → CANCELED (Cancelar)
+```
+
+### Área de Preparo (PrepArea)
+
+```typescript
+type PrepArea = 'BAR' | 'KITCHEN';
+```
+
+**Mapeamento automático**:
+- BAR: Chopes, Cervejas, Drinks, Shots (default)
+- KITCHEN: Petiscos, Porções, Lanches (futuro)
+
+Definido pela categoria do produto via `getPrepArea(category)`.
+
+### OrderCard
+
+**Exibe**:
+- Mesa em destaque (ex: `M12`) - fonte grande
+- Tempo relativo ("há 3 min", "agora")
+- Lista de itens: `qty × nome` + preço
+- Badge de área: 🍷 BAR (âmbar) ou 👨‍🍳 COZINHA (roxo)
+- Total do pedido
+
+**Ações contextuais**:
+| Status | Botão Principal | Cor |
+|--------|-----------------|-----|
+| NEW | "Iniciar Preparo" | Azul |
+| IN_PROGRESS | "Marcar Pronto" | Verde |
+| READY | "Entregar" | Roxo |
+| DELIVERED | — (estado final) | Cinza |
+
+**Cancelar**: Disponível para NEW e IN_PROGRESS (ícone X vermelho)
+
+### OrdersKanban
+
+**Layout**: 4 colunas (responsivo: 1 col mobile → 4 cols desktop)
+
+| Coluna | Status | Ícone | Cor |
+|--------|--------|-------|-----|
+| Novos | NEW | Clock | Âmbar (#F59E0B) |
+| Em Preparo | IN_PROGRESS | Play | Azul (#2563EB) |
+| Prontos | READY | CheckCircle | Verde (#00E676) |
+| Entregues | DELIVERED | Truck | Cinza (#6B7280) |
+
+**Features**:
+- Contagem de pedidos por coluna
+- Scroll interno por coluna
+- Toggle para esconder/mostrar entregues
+- Pedidos cancelados sempre ocultos
+
+### OrdersFilters
+
+**Filtros disponíveis**:
+1. **Busca por mesa** - Input de texto
+2. **Área de preparo** - Segmented: Todos | Bar | Cozinha
+3. **Toggle entregues** - Mostrar/esconder coluna de entregues
+4. **Contador ativo** - Total de pedidos ativos (NEW + IN_PROGRESS + READY)
+5. **Botão Atualizar** - Refresh manual com indicador de loading
+
+### Atualização em Tempo Real
+
+**Implementação atual**: Polling a cada 3 segundos
+```javascript
+const POLLING_INTERVAL = 3000;
+useEffect(() => {
+  fetchOrders();
+  const interval = setInterval(() => fetchOrders(), POLLING_INTERVAL);
+  return () => clearInterval(interval);
+}, [fetchOrders]);
+```
+
+**Atualização local otimista**: Ao mudar status, atualiza UI imediatamente antes da resposta da API.
+
+**Futuro**: SSE via `/api/admin/orders/stream` para eventos:
+- `ORDER_CREATED` - Novo pedido
+- `ORDER_UPDATED` - Mudança de status
+
+---
+
+### GET `/api/admin/orders`
+
+**Propósito**: Listar pedidos com filtros
+
+**Query Params**:
+- `status` - Filtrar por status (pode ser múltiplo: `NEW,IN_PROGRESS`)
+- `prepArea` - Filtrar por área: `BAR` | `KITCHEN`
+- `tableId` - Buscar por mesa (parcial)
+- `countsOnly` - Se `true`, retorna apenas contagens
+
+**Response (200 OK)**:
+```json
+{
+  "orders": [...],
+  "counts": {
+    "NEW": 3,
+    "IN_PROGRESS": 2,
+    "READY": 1,
+    "DELIVERED": 10,
+    "CANCELED": 0
+  },
+  "total": 16
+}
+```
+
+---
+
+### PATCH `/api/admin/orders/:id/status`
+
+**Propósito**: Avançar status do pedido
+
+**Request**:
+```json
+{
+  "status": "IN_PROGRESS"
+}
+```
+
+**Response (200 OK)**:
+```json
+{
+  "success": true,
+  "order": { ... },
+  "message": "Status atualizado para IN_PROGRESS"
+}
+```
+
+**Validações**:
+- Pedido deve existir
+- Transição de status deve ser válida (ver tabela acima)
+
+**Response (400 Bad Request)**:
+```json
+{
+  "error": "Transição inválida: DELIVERED → NEW",
+  "currentStatus": "DELIVERED",
+  "allowedTransitions": []
+}
+```
+
+---
+
+### Orders Store (`lib/stores/ordersStore.ts`)
+
+**Propósito**: Persistência em memória de pedidos (substituir por Redis/Postgres em produção)
+
+**Interfaces**:
+```typescript
+interface Order {
+  id: string;              // Ex: "ORD-20251225-0001"
+  sessionId: string;
+  tableId: string | null;  // Ex: "M12"
+  status: OrderStatus;
+  items: OrderItem[];
+  totalCents: number;
+  createdAt: string;       // ISO 8601
+  updatedAt: string;
+  confirmedAt: string | null;
+}
+
+interface OrderItem {
+  id: string;
+  productId: string;
+  productName: string;
+  qty: number;
+  priceCents: number;
+  lineTotalCents: number;
+  category: string;
+  prepArea: PrepArea;
+}
+```
+
+**Funções exportadas**:
+- `createOrder(data)` - Cria pedido com ID único
+- `getOrders(filters)` - Lista com filtros opcionais
+- `getOrderById(id)` - Busca por ID
+- `updateOrderStatus(id, status)` - Atualiza status
+- `getOrderCounts()` - Contagem por status
+- `cleanOldOrders()` - Limpa pedidos > 24h
+- `getPrepArea(category)` - Mapeia categoria → área
 
 ---
 
 ## Componentes do Admin Console
+
+### AdminLayout
 - **Tipo**: Client Component
 - **Função**: Layout wrapper para todas as páginas admin
 - **Elementos**:
@@ -742,10 +957,12 @@ formatPriceChange(change)     // Formata variação %
   - [x] BuyModal (fluxo de lock e confirmação)
   - [x] Index barrel exports
 - [x] Admin Console completo:
-  - [x] Dashboard com estatísticas e rankings
+  - [x] Dashboard com estatísticas, rankings e botões de eventos de mercado
   - [x] Gestão de produtos (listar, criar, editar)
   - [x] Gestão de categorias
+  - [x] **Página de Pedidos** (`/admin/pedidos`) - Kanban operacional em tempo real
   - [x] Componentes admin: AdminLayout, StatCard, RankingPanel, MarketTable, ProductsTable, ProductForm, CategoriesTable
+  - [x] Componentes pedidos: OrderCard, OrdersKanban, OrdersFilters
 
 **Dados**
 - [x] 35 produtos mock em 5 categorias
@@ -765,6 +982,13 @@ formatPriceChange(change)     // Formata variação %
   - [x] `/api/stream/precos` - SSE com fallback polling (3s tick)
   - [x] `/api/orders/lock` - POST (cria price lock com 15s TTL)
   - [x] `/api/orders/confirm` - POST (confirma pedido se lock válido)
+  - [x] `/api/admin/orders` - GET (listar pedidos com filtros)
+  - [x] `/api/admin/orders/:id/status` - PATCH (atualizar status)
+- [x] **Orders Store** (`lib/stores/ordersStore.ts`):
+  - [x] Persistência em memória de pedidos
+  - [x] CRUD de pedidos e itens
+  - [x] Mapeamento automático de área de preparo (BAR/KITCHEN)
+  - [x] Funções de contagem e limpeza
 - [x] **MarketStreamProvider Context**:
   - [x] SSE com reconexão automática
   - [x] Fallback para polling se SSE indisponível
@@ -813,6 +1037,16 @@ formatPriceChange(change)     // Formata variação %
 - [x] Integração com SSE para preços em tempo real
 - [x] Session management
 - [x] Query params (?table=M12) para identificação de mesa
+
+### Fase 1.5: Painel de Pedidos ✅ (Completo)
+- [x] Criar `/admin/pedidos` com Kanban board
+- [x] Implementar OrderCard, OrdersKanban, OrdersFilters
+- [x] API GET `/api/admin/orders` com filtros
+- [x] API PATCH `/api/admin/orders/:id/status` para transições
+- [x] Orders Store em memória
+- [x] Polling a cada 3s para atualização automática
+- [x] Transições de status: NEW → IN_PROGRESS → READY → DELIVERED
+- [x] Filtros por área (BAR/KITCHEN), mesa e status
 
 ### Fase 2: Toasts e UX Detalhes
 1. Implementar Toast notification system (sucesso/erro)

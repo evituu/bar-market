@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MOCK_PRODUCTS, MOCK_PRICE_STATE } from '@/data';
+import { validateTicker } from '@/lib/utils/ticker';
 
 // GET /api/admin/products - Lista todos os produtos com filtros
 export async function GET(request: NextRequest) {
@@ -58,6 +59,8 @@ export async function POST(request: NextRequest) {
     const {
       name,
       sku,
+      ticker,
+      tickerSource,
       description,
       category,
       basePriceCents,
@@ -70,6 +73,33 @@ export async function POST(request: NextRequest) {
     if (!name || !sku || !category) {
       return NextResponse.json(
         { error: 'Campos obrigatórios: name, sku, category' },
+        { status: 400 }
+      );
+    }
+
+    // Valida ticker
+    if (!ticker) {
+      return NextResponse.json(
+        { error: 'Ticker é obrigatório' },
+        { status: 400 }
+      );
+    }
+
+    const tickerValidation = validateTicker(ticker);
+    if (!tickerValidation.valid) {
+      return NextResponse.json(
+        { error: tickerValidation.error },
+        { status: 400 }
+      );
+    }
+
+    // Verifica se ticker já existe
+    const tickerExists = MOCK_PRODUCTS.some(
+      (p) => p.ticker.toUpperCase() === ticker.toUpperCase()
+    );
+    if (tickerExists) {
+      return NextResponse.json(
+        { error: 'Ticker já está em uso' },
         { status: 400 }
       );
     }
@@ -99,6 +129,8 @@ export async function POST(request: NextRequest) {
     const newProduct = {
       id: `prod-${Date.now()}`,
       sku,
+      ticker: ticker.toUpperCase(),
+      tickerSource: tickerSource || 'AUTO',
       name,
       description: description || '',
       category,
@@ -106,6 +138,8 @@ export async function POST(request: NextRequest) {
       basePriceCents,
       priceFloorCents,
       priceCapCents,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
     // Em produção: também criar price_state inicial

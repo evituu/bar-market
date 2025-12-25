@@ -1,6 +1,8 @@
 export interface Product {
   id: string;
   sku: string;
+  ticker: string; // Símbolo de bolsa (ex: GINT3, CHOP4)
+  tickerSource: 'AUTO' | 'MANUAL'; // Origem do ticker (gerado ou editado)
   name: string;
   description: string | null;
   category: string;
@@ -16,6 +18,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-1',
     sku: 'CHOPE-PILSEN-300',
+    ticker: 'CHOP3',
+    tickerSource: 'AUTO',
     name: 'Chope Pilsen 300ml',
     description: 'Chope clássico, sempre gelado',
     category: 'Chopes',
@@ -29,6 +33,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-2',
     sku: 'IPA-473',
+    ticker: 'IPA3',
+    tickerSource: 'AUTO',
     name: 'IPA Lata 473ml',
     description: 'India Pale Ale artesanal',
     category: 'Cervejas',
@@ -42,6 +48,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-3',
     sku: 'GIN-TONICA',
+    ticker: 'GINT3',
+    tickerSource: 'AUTO',
     name: 'Gin Tônica',
     description: 'Gin premium com tônica e limão siciliano',
     category: 'Drinks',
@@ -55,6 +63,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-4',
     sku: 'CAIP-LIMAO',
+    ticker: 'CALI3',
+    tickerSource: 'AUTO',
     name: 'Caipirinha Limão',
     description: 'Cachaça artesanal com limão',
     category: 'Drinks',
@@ -68,6 +78,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-5',
     sku: 'SHOT-TEQUILA',
+    ticker: 'TEQU3',
+    tickerSource: 'AUTO',
     name: 'Shot Tequila',
     description: 'Tequila prata premium',
     category: 'Shots',
@@ -81,6 +93,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-6',
     sku: 'CAIP-MORANGO',
+    ticker: 'CAMO3',
+    tickerSource: 'AUTO',
     name: 'Caipirinha Morango',
     description: 'Cachaça com morangos frescos',
     category: 'Drinks',
@@ -94,6 +108,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-7',
     sku: 'VODKA-RED',
+    ticker: 'VORE3',
+    tickerSource: 'AUTO',
     name: 'Vodka Red Bull',
     description: 'Vodka premium com energético',
     category: 'Drinks',
@@ -107,6 +123,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-8',
     sku: 'HEINEKEN-LONG',
+    ticker: 'HEIN3',
+    tickerSource: 'AUTO',
     name: 'Heineken Long Neck',
     description: 'Cerveja internacional 330ml',
     category: 'Cervejas',
@@ -121,6 +139,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-9',
     sku: 'CHOPE-IPA-300',
+    ticker: 'CIPA3',
+    tickerSource: 'AUTO',
     name: 'Chope IPA 300ml',
     description: 'Chope artesanal lúpulo intenso',
     category: 'Chopes',
@@ -134,6 +154,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-10',
     sku: 'CHOPE-WEISS-300',
+    ticker: 'WEIS3',
+    tickerSource: 'AUTO',
     name: 'Chope Weiss 300ml',
     description: 'Chope de trigo alemão',
     category: 'Chopes',
@@ -147,6 +169,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-11',
     sku: 'CHOPE-STOUT-300',
+    ticker: 'STOU3',
+    tickerSource: 'AUTO',
     name: 'Chope Stout 300ml',
     description: 'Chope escuro encorpado',
     category: 'Chopes',
@@ -160,6 +184,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-12',
     sku: 'CHOPE-LAGER-500',
+    ticker: 'CHOP5',
+    tickerSource: 'AUTO',
     name: 'Chope Pilsen 500ml',
     description: 'Canecão de chope clássico',
     category: 'Chopes',
@@ -173,6 +199,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-13',
     sku: 'CHOPE-ABBEY-300',
+    ticker: 'ABBE3',
+    tickerSource: 'AUTO',
     name: 'Chope Abbey 300ml',
     description: 'Chope tipo belga especial',
     category: 'Chopes',
@@ -186,6 +214,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-14',
     sku: 'CHOPE-BLONDE-300',
+    ticker: 'BLON3',
+    tickerSource: 'AUTO',
     name: 'Chope Blonde 300ml',
     description: 'Chope louro e refrescante',
     category: 'Chopes',
@@ -199,6 +229,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-15',
     sku: 'CHOPE-PORTER-300',
+    ticker: 'PORT3',
+    tickerSource: 'AUTO',
     name: 'Chope Porter 300ml',
     description: 'Chope escuro suave',
     category: 'Chopes',
@@ -213,6 +245,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-16',
     sku: 'STELLA-LONG',
+    ticker: 'STEL3',
+    tickerSource: 'AUTO',
     name: 'Stella Artois Long',
     description: 'Cerveja premium belga 330ml',
     category: 'Cervejas',
@@ -226,6 +260,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-17',
     sku: 'CORONA-LONG',
+    ticker: 'CORO3',
+    tickerSource: 'AUTO',
     name: 'Corona Extra',
     description: 'Cerveja mexicana 355ml',
     category: 'Cervejas',
@@ -239,6 +275,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-18',
     sku: 'BUDWEISER-LONG',
+    ticker: 'BUDW3',
+    tickerSource: 'AUTO',
     name: 'Budweiser Long Neck',
     description: 'Cerveja americana 330ml',
     category: 'Cervejas',
@@ -252,6 +290,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-19',
     sku: 'BRAHMA-LATA',
+    ticker: 'BRAH3',
+    tickerSource: 'AUTO',
     name: 'Brahma Duplo Malte',
     description: 'Cerveja nacional 350ml',
     category: 'Cervejas',
@@ -265,6 +305,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-20',
     sku: 'EISENBAHN-PALE',
+    ticker: 'EISE3',
+    tickerSource: 'AUTO',
     name: 'Eisenbahn Pale Ale',
     description: 'Cerveja artesanal 355ml',
     category: 'Cervejas',
@@ -278,6 +320,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-21',
     sku: 'SKOL-LATA',
+    ticker: 'SKOL3',
+    tickerSource: 'AUTO',
     name: 'Skol Lata',
     description: 'Cerveja tradicional 350ml',
     category: 'Cervejas',
@@ -291,6 +335,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-22',
     sku: 'ANTARCTICA-LATA',
+    ticker: 'ANTA3',
+    tickerSource: 'AUTO',
     name: 'Antarctica Lata',
     description: 'Cerveja gelada 350ml',
     category: 'Cervejas',
@@ -305,6 +351,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-23',
     sku: 'CAIP-MARACUJA',
+    ticker: 'CAIP5',
+    tickerSource: 'AUTO',
     name: 'Caipirinha Maracujá',
     description: 'Cachaça com maracujá fresco',
     category: 'Drinks',
@@ -318,6 +366,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-24',
     sku: 'CAIP-KIWI',
+    ticker: 'CAIP6',
+    tickerSource: 'AUTO',
     name: 'Caipirinha Kiwi',
     description: 'Cachaça com kiwi',
     category: 'Drinks',
@@ -331,6 +381,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-25',
     sku: 'MOJITO',
+    ticker: 'MOJI3',
+    tickerSource: 'AUTO',
     name: 'Mojito Clássico',
     description: 'Rum, hortelã, limão e açúcar',
     category: 'Drinks',
@@ -344,6 +396,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-26',
     sku: 'CUBA-LIBRE',
+    ticker: 'CUBA3',
+    tickerSource: 'AUTO',
     name: 'Cuba Libre',
     description: 'Rum com cola e limão',
     category: 'Drinks',
@@ -357,6 +411,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-27',
     sku: 'WHISKY-SOUR',
+    ticker: 'WHIS3',
+    tickerSource: 'AUTO',
     name: 'Whisky Sour',
     description: 'Whisky com limão e açúcar',
     category: 'Drinks',
@@ -370,6 +426,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-28',
     sku: 'APEROL-SPRITZ',
+    ticker: 'APER3',
+    tickerSource: 'AUTO',
     name: 'Aperol Spritz',
     description: 'Aperol, prosecco e soda',
     category: 'Drinks',
@@ -384,6 +442,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-29',
     sku: 'SHOT-JAGER',
+    ticker: 'JAGE3',
+    tickerSource: 'AUTO',
     name: 'Shot Jägermeister',
     description: 'Licor de ervas alemão',
     category: 'Shots',
@@ -397,6 +457,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-30',
     sku: 'SHOT-VODKA',
+    ticker: 'VODK4',
+    tickerSource: 'AUTO',
     name: 'Shot Vodka',
     description: 'Vodka premium gelada',
     category: 'Shots',
@@ -410,6 +472,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-31',
     sku: 'SHOT-CACHACA',
+    ticker: 'CACH3',
+    tickerSource: 'AUTO',
     name: 'Shot Cachaça',
     description: 'Cachaça artesanal',
     category: 'Shots',
@@ -423,6 +487,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-32',
     sku: 'SHOT-WHISKY',
+    ticker: 'WHIS4',
+    tickerSource: 'AUTO',
     name: 'Shot Whisky',
     description: 'Whisky escocês',
     category: 'Shots',
@@ -436,6 +502,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-33',
     sku: 'SHOT-SAMBUCA',
+    ticker: 'SAMB3',
+    tickerSource: 'AUTO',
     name: 'Shot Sambuca',
     description: 'Licor italiano de anis',
     category: 'Shots',
@@ -449,6 +517,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-34',
     sku: 'SHOT-GIN',
+    ticker: 'GINP3',
+    tickerSource: 'AUTO',
     name: 'Shot Gin Premium',
     description: 'Gin 43% - dose destilada',
     category: 'Shots',
@@ -462,6 +532,8 @@ export const MOCK_PRODUCTS: Product[] = [
   {
     id: 'prod-35',
     sku: 'SHOT-RUM',
+    ticker: 'RUMP3',
+    tickerSource: 'AUTO',
     name: 'Shot Rum Premium',
     description: 'Rum envelhecido 40%',
     category: 'Shots',

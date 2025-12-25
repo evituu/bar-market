@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createOrder } from '@/lib/stores/ordersStore';
+import { getProductById } from '@/data';
 
 // Store compartilhado de locks (em produção: Redis)
 // Nota: Importar de outro arquivo causa problemas em edge runtime
@@ -112,13 +114,27 @@ export async function POST(request: NextRequest) {
     // Atualiza status do lock
     priceLocks.set(lockId, { ...lock, status: 'confirmed' });
 
-    // Salva pedido confirmado
+    // Salva pedido confirmado (store legado)
     confirmedOrders.set(orderId, confirmedOrder);
+
+    // Busca produto para pegar categoria
+    const product = getProductById(lock.productId);
+    
+    // Salva no ordersStore para aparecer em /admin/pedidos
+    const newOrder = createOrder({
+      sessionId: lock.sessionId,
+      tableId: lock.tableId || null,
+      productId: lock.productId,
+      productName: product?.name || 'Produto desconhecido',
+      category: product?.category || 'Outros',
+      qty: lock.qty,
+      priceCents: lock.lockedPriceCents,
+    });
 
     return NextResponse.json({
       success: true,
       order: {
-        orderId: confirmedOrder.orderId,
+        orderId: newOrder.id,
         productId: confirmedOrder.productId,
         qty: confirmedOrder.qty,
         priceCents: confirmedOrder.priceCents,

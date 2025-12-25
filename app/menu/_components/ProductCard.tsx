@@ -40,9 +40,15 @@ export const ProductCard = memo(function ProductCard({
     <div className="bg-[#111827] border border-[#1F2937] rounded-xl p-4 flex items-center justify-between gap-3">
       {/* Info do produto */}
       <div className="flex-1 min-w-0">
-        <h3 className="text-base font-medium text-[#E5E7EB] truncate">
-          {product.name}
-        </h3>
+        {/* Ticker + Nome */}
+        <div className="flex items-baseline gap-2">
+          <span className={`text-xs font-bold font-market-semibold ${changeColor} tracking-wider`}>
+            {product.ticker}
+          </span>
+          <h3 className="text-base font-medium text-[#E5E7EB] truncate">
+            {product.name}
+          </h3>
+        </div>
         <div className="flex items-center gap-2 mt-1">
           {/* Preço */}
           <span className="text-lg font-semibold font-market-semibold text-[#E5E7EB]">
