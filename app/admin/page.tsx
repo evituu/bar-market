@@ -29,14 +29,6 @@ export default function AdminDashboard() {
 
   return (
     <AdminLayout>
-      {/* Page Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-[#E5E7EB]">Dashboard</h1>
-        <p className="text-sm text-[#9CA3AF] mt-1">
-          Visão geral do mercado e estatísticas em tempo real
-        </p>
-      </div>
-
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard

@@ -21,14 +21,24 @@ Sistema de precificação dinâmica para bebidas inspirado em bolsa de valores, 
 
 **2. Página Menu (`/menu`)**
 - **Arquivo**: `app/menu/page.tsx`
-- **Status**: 🚧 Em desenvolvimento (arquivo vazio)
-- **Pasta de componentes**: `app/menu/_components/` (vazia)
+- **Status**: ✅ Implementada
+- **Pasta de componentes**: `app/menu/_components/`
 - **Finalidade**: Interface para clientes visualizarem produtos e realizarem pedidos
-- **Features planejadas**:
+- **Componentes**:
+  - `MenuClient.tsx` - Client wrapper com state management
+  - `MenuHeader.tsx` - Header fixo com busca e status de conexão
+  - `CategoryTabs.tsx` - Tabs horizontais com categorias
+  - `ProductList.tsx` - Grid de produtos com filtros
+  - `ProductCard.tsx` - Card individual (memoizado)
+  - `BuyModal.tsx` - Modal com fluxo de lock e confirmação
+  - `index.ts` - Barrel exports
+- **Features implementadas**:
   - Catálogo de produtos por categoria
-  - Preços em tempo real
-  - Sistema de carrinho com lock de preços
-  - Confirmação de pedidos
+  - Preços em tempo real via SSE
+  - Sistema de lock de preços (15s TTL)
+  - Fluxo completo de confirmação de pedido
+  - Suporte a query param `?table=M12` para identificação de mesa
+  - SessionId gerado via sessionStorage
 
 **3. Página Telão (`/telao`)**
 - **Arquivo**: `app/telao/page.tsx`
@@ -65,10 +75,12 @@ Sistema de precificação dinâmica para bebidas inspirado em bolsa de valores, 
   - `/api/admin/products/:id/status` - PATCH (ativar/desativar)
   - `/api/admin/categories` - GET (listar), POST (criar)
   - `/api/admin/categories/:id` - PATCH (editar), DELETE (remover)
+  - `/api/stream/precos` - GET com SSE ou fallback polling (3s tick)
+  - `/api/orders/lock` - POST (cria price lock com 15s TTL)
+  - `/api/orders/confirm` - POST (confirma pedido se lock válido)
 - **Rotas planejadas**:
-  - `/api/ordens/confirmar` - Confirmação de pedidos
-  - `/api/ordens/look` - Consulta de ordens e locks
-  - `/api/stream/precos` - Server-Sent Events para preços em tempo real
+  - `/api/orders/history` - Histórico de pedidos do cliente
+  - `/api/orders/validate` - Validação de pedido
 
 **6. Layout Global**
 - **Arquivo**: `app/layout.tsx`
@@ -147,9 +159,320 @@ Sistema de precificação dinâmica para bebidas inspirado em bolsa de valores, 
 
 ---
 
-## Componentes do Admin Console
+## Componentes do Menu (Detalhamento)
 
-### AdminLayout
+### MenuClient
+- **Tipo**: Client Component
+- **Função**: Orquestrador principal da página menu
+- **Responsabilidades**:
+  - Gerencia estado: categoria selecionada, busca, estado do modal de compra
+  - Geração/persistência de sessionId via sessionStorage
+  - Extração de `?table=M12` dos query params
+  - Orquestração do fluxo de compra (lock → modal → confirm)
+- **Props**: Nenhuma (consome query params via `useSearchParams`)
+- **State**:
+  - `selectedCategory`: string (seleção atual)
+  - `searchQuery`: string (termo de busca)
+  - `loadingProductId`: string | null (estado de carregamento)
+  - `lockData`: LockData | null (dados do lock criado)
+  - `sessionId`: string (ID da sessão)
+
+### MenuHeader
+- **Tipo**: Client Component
+- **Função**: Header fixo com branding e status
+- **Elementos**:
+  - Logo "Bar Market" em JetBrains Mono
+  - Badge de mesa (`?table=M12`)
+  - Indicador de conexão:
+    - Verde (conectado): "Tick #X"
+    - Âmbar (reconectando): "Reconectando..."
+    - Vermelho (offline): "Offline"
+  - Input de busca (debounce)
+- **Props**: `tableId`, `searchQuery`, `onSearchChange`
+
+### CategoryTabs
+- **Tipo**: Client Component
+- **Função**: Navegação por categorias
+- **Elementos**:
+  - Tab "Todos" (count total)
+  - Tab para cada categoria com contagem de produtos
+  - Scroll horizontal em mobile
+  - Selected state com cor âmbar (#F59E0B)
+- **Props**: `selectedCategory`, `onSelectCategory`
+
+### ProductList
+- **Tipo**: Client Component
+- **Função**: Grid de produtos filtrado e ordenado
+- **Lógica**:
+  - Filtra por categoria selecionada
+  - Filtra por termo de busca
+  - Ordena: ativos primeiro, depois por variação absoluta
+  - Mostra skeleton em carregamento
+  - Mensagem quando nenhum resultado
+- **Props**: `selectedCategory`, `searchQuery`, `loadingProductId`, `onBuy`
+- **Layout**: 1 col mobile, 2+ cols em telas maiores
+
+### ProductCard
+- **Tipo**: Client Component (Memoizado)
+- **Função**: Card individual com preço e ação de compra
+- **Elementos**:
+  - Nome do produto
+  - Preço atual (JetBrains Mono, bold)
+  - Indicador de variação (↑ verde, ↓ vermelho, = âmbar)
+  - Botão "Comprar" com loading state
+- **Props**: `product`, `isLoading`, `onBuy`
+- **Performance**: Memoizado para evitar re-renders desnecessários
+
+### BuyModal
+- **Tipo**: Client Component (Modal)
+- **Função**: Fluxo completo de compra com lock
+- **Estados da Máquina**:
+  1. `countdown` - Lock criado, aguardando confirmação com countdown
+  2. `confirming` - Enviando confirmação
+  3. `success` - Pedido confirmado
+  4. `expired` - Lock expirou (15s)
+  5. `error` - Erro na confirmação
+- **Elementos**:
+  - Resumo: produto, quantidade (fixa 1), preço, total
+  - Contador regressivo (segundos restantes)
+  - Botão "Confirmar Pedido"
+  - Estados de erro com retry
+- **Props**: `isOpen`, `lockData`, `sessionId`, `onClose`, `onConfirmSuccess`
+- **Fluxo**:
+  1. Modal abre quando `lockData` é definido
+  2. Timer atualiza a cada segundo
+  3. Se expira, muda para estado `expired`
+  4. Confirmar dispara POST `/api/orders/confirm`
+  5. Sucesso fecha modal e callback `onConfirmSuccess`
+
+---
+
+## Fluxo de Compra (Detalhado)
+
+### 1. Cliente Clica "Comprar"
+```
+ProductCard.onBuy() 
+  → MenuClient.handleBuy()
+    → POST /api/orders/lock { productId, qty, sessionId, tableId }
+      → Retorna { orderId, lockId, lockedPriceCents, expiresAt }
+    → Abre BuyModal com lockData
+```
+
+### 2. Modal de Lock
+```
+BuyModal Estado: countdown
+  - Exibe preço travado
+  - Contador regressivo de 15s → 0s
+  - Se chegar a 0: estado = expired (pode retry)
+  - Botão "Confirmar Pedido"
+```
+
+### 3. Confirmação
+```
+BuyModal.handleConfirm()
+  → Estado: confirming
+  → POST /api/orders/confirm { orderId, lockId, sessionId }
+    → API valida se lock ainda é válido
+    → Se OK: cria Order, estado = success
+    → Se expirado: estado = expired
+    → Se erro: estado = error
+  → Após 2s em success: fecha modal, callback onConfirmSuccess
+```
+
+### 4. SessionId e Rastreamento
+```
+MenuClient.getSessionId()
+  → Procura em sessionStorage[bar-market-session-id]
+  → Se não existe: gera `session_${timestamp}_${random}`
+  → Persiste em sessionStorage (vive enquanto aba aberta)
+  → Enviado em todos os lock/confirm para rastreamento
+```
+
+---
+
+### 4. SessionId e Rastreamento
+```
+MenuClient.getSessionId()
+  → Procura em sessionStorage[bar-market-session-id]
+  → Se não existe: gera `session_${timestamp}_${random}`
+  → Persiste em sessionStorage (vive enquanto aba aberta)
+  → Enviado em todos os lock/confirm para rastreamento
+```
+
+---
+
+## Sistema de Streaming em Tempo Real (SSE)
+
+### MarketStreamProvider Context
+
+**Localização**: `lib/context/MarketStreamContext.tsx`
+
+**Interface**:
+```typescript
+interface MarketStreamContextValue {
+  snapshot: MarketSnapshot | null;      // Último snapshot recebido
+  isConnected: boolean;                 // SSE ativo
+  isReconnecting: boolean;              // Em processo de reconexão
+  error: string | null;                 // Última mensagem de erro
+  lastUpdate: Date | null;              // Timestamp do último update
+}
+
+interface MarketSnapshot {
+  tick: number;                         // Número do tick
+  timestamp: string;                    // ISO 8601
+  products: ProductWithPrice[];         // Estado de todos os produtos
+}
+```
+
+**Hooks Exportados**:
+- `useMarketStream()` - Acesso ao contexto completo
+- `useProduct(id)` - Hook para um produto específico (future optimization)
+- `useProductsByCategory(category)` - Hook para filtrar por categoria
+
+**Comportamento**:
+1. **Tentativa SSE** (EventSource)
+   - Conecta a `/api/stream/precos`
+   - Ouve evento `message` com JSON snapshot
+   - Reconecta com backoff exponencial (max 30s)
+   - Estados: `connecting` → `connected` → `reconnecting`
+
+2. **Fallback Polling**
+   - Se SSE falhar ou browser não suporta
+   - Polling a cada 3 segundos para `/api/stream/precos?poll=true`
+   - Mesmo JSON structure que SSE
+   - Validação de mudanças antes de update state
+
+3. **Tratamento de Erros**
+   - Guarda mensagem de erro
+   - Continua tentando reconectar
+   - UI pode mostrar estado offline/error
+
+### Endpoint SSE `/api/stream/precos`
+
+**Localização**: `app/api/stream/precos/route.ts`
+
+**Comportamento**:
+```
+GET /api/stream/precos
+  ├─ Se header Accept: text/event-stream → SSE mode
+  │    └─ Envia snapshots a cada 3s indefinidamente
+  └─ Se query ?poll=true → HTTP polling mode
+       └─ Retorna snapshot uma única vez com status 200
+```
+
+**Response (SSE)**:
+```
+data: {
+  "tick": 42,
+  "timestamp": "2025-12-25T14:30:00.000Z",
+  "products": [
+    {
+      "id": "heineken-chopp",
+      "name": "Chopp Heineken 300ml",
+      "category": "Chopes",
+      "basePriceCents": 1500,
+      "currentPriceCents": 1530,
+      "prevPriceCents": 1500,
+      "priceChange": 2,
+      "priceChangePercent": 2.0,
+      "priceState": "up",
+      "isActive": true
+    },
+    ...
+  ]
+}
+```
+
+**Intervalo**: 3 segundos (simulando sistema de trade com ticks)
+
+**Simulação de Preços**:
+- Variação aleatória: ±2% por tick
+- Usa função `getRandomPriceVariation()` para cada produto
+- Estado (`up`/`down`/`neutral`) baseado em `currentPrice vs prevPrice`
+
+---
+
+## Sistema de Lock de Preços
+
+### POST `/api/orders/lock`
+
+**Propósito**: Travamento de preço para compra segura
+
+**Request**:
+```json
+{
+  "productId": "heineken-chopp",
+  "productName": "Chopp Heineken 300ml",
+  "qty": 1,
+  "currentPriceCents": 1530,
+  "sessionId": "session_1703069400000_abc123xyz",
+  "tableId": "M12"
+}
+```
+
+**Response (200 OK)**:
+```json
+{
+  "orderId": "order_20251225_001",
+  "lockId": "lock_abc123xyz789",
+  "productId": "heineken-chopp",
+  "productName": "Chopp Heineken 300ml",
+  "qty": 1,
+  "lockedPriceCents": 1530,
+  "totalCents": 1530,
+  "expiresAt": "2025-12-25T14:30:15.000Z",
+  "ttlSeconds": 15
+}
+```
+
+**TTL**: 15 segundos (ajustável em const `TTL_SECONDS`)
+
+**Implementação**:
+- Armazena em `Map<string, PriceLock>` (em-memory, precisa Redis em prod)
+- Chave: `lockId`
+- Limpeza de locks expirados a cada nova requisição
+
+---
+
+### POST `/api/orders/confirm`
+
+**Propósito**: Confirmar pedido se lock ainda válido
+
+**Request**:
+```json
+{
+  "orderId": "order_20251225_001",
+  "lockId": "lock_abc123xyz789",
+  "sessionId": "session_1703069400000_abc123xyz"
+}
+```
+
+**Response (200 OK)**:
+```json
+{
+  "success": true,
+  "orderId": "order_20251225_001",
+  "message": "Pedido confirmado"
+}
+```
+
+**Validações**:
+1. Lock existe (`lockId` encontrado)
+2. Lock não expirou (`expiresAt > now`)
+3. SessionId corresponde (rastreamento)
+
+**Response (400 Bad Request)**:
+- `code: 'LOCK_EXPIRED'` - 15s já passaram
+- `code: 'LOCK_NOT_FOUND'` - lockId inválido
+- `code: 'INVALID_SESSION'` - sessionId mismatch
+
+**Implementação**:
+- Remove lock após sucesso (one-time use)
+- Cria registro de Order (future: salva em DB)
+
+---
+
+## Componentes do Admin Console
 - **Tipo**: Client Component
 - **Função**: Layout wrapper para todas as páginas admin
 - **Elementos**:
@@ -406,9 +729,18 @@ formatPriceChange(change)     // Formata variação %
 **Interface**
 - [x] Página inicial com navegação (3 cards: Menu, Telão, Admin)
 - [x] Telão completo com cotações em tempo real (mock)
+- [x] **Página Menu** com catálogo, busca, categorias e compra
 - [x] Design system (cores, fontes, animações)
 - [x] Layout fixo sem scroll (h-screen)
 - [x] Componentes Telão: MarketHeader, TickerTape, DrinkValueBoard, PriceFlash, MarketRanking
+- [x] Componentes Menu:
+  - [x] MenuClient (orquestrador)
+  - [x] MenuHeader (header com status)
+  - [x] CategoryTabs (navegação por categorias)
+  - [x] ProductList (grid de produtos)
+  - [x] ProductCard (card memoizado)
+  - [x] BuyModal (fluxo de lock e confirmação)
+  - [x] Index barrel exports
 - [x] Admin Console completo:
   - [x] Dashboard com estatísticas e rankings
   - [x] Gestão de produtos (listar, criar, editar)
@@ -429,6 +761,18 @@ formatPriceChange(change)     // Formata variação %
   - [x] `/api/admin/products/:id/status` - PATCH
   - [x] `/api/admin/categories` - GET, POST
   - [x] Validações: floor ≤ base ≤ cap
+- [x] **API Routes para streaming e pedidos:**
+  - [x] `/api/stream/precos` - SSE com fallback polling (3s tick)
+  - [x] `/api/orders/lock` - POST (cria price lock com 15s TTL)
+  - [x] `/api/orders/confirm` - POST (confirma pedido se lock válido)
+- [x] **MarketStreamProvider Context**:
+  - [x] SSE com reconexão automática
+  - [x] Fallback para polling se SSE indisponível
+  - [x] Hooks: useMarketStream(), useProduct(), useProductsByCategory()
+- [x] **Session Management**:
+  - [x] SessionId gerado via sessionStorage
+  - [x] Persistência durante sessão (aba aberta)
+  - [x] Rastreamento em lock/confirm
 
 **Infraestrutura**
 - [x] Next.js 16 + React 19 + TypeScript
@@ -440,59 +784,76 @@ formatPriceChange(change)     // Formata variação %
 ### 🚧 Pendente de Implementação
 
 **Interface**
-- [ ] Página Menu (`/menu`) - Interface de compra
-- [ ] Componentes do menu (catálogo, carrinho, confirmação)
-- [ ] Responsividade mobile do menu
+- [ ] Histórico de pedidos do cliente
+- [ ] Toast notifications (sucesso/erro)
+- [ ] Modo offline completo
+- [ ] Responsividade avançada (landscape, tablets)
 
 **Backend**
-- [ ] API Routes para pedidos:
-  - [ ] `/api/ordens/confirmar` - POST
-  - [ ] `/api/ordens/look` - GET
-  - [ ] `/api/stream/precos` - SSE
 - [ ] Motor de precificação real (algoritmo de variação)
 - [ ] Banco de dados (Postgres + Redis)
-- [ ] WebSockets ou Server-Sent Events
+- [ ] API de histórico de pedidos
+- [ ] Webhook de eventos de mercado
 - [ ] Sistema de autenticação (mesas/QR codes)
 
 **Features**
-- [ ] Lock de preços com expiração
 - [ ] Eventos de mercado (crash, promo, freeze)
 - [ ] Histórico de preços para gráficos
 - [ ] Persistência real (atualmente apenas mock)
 - [ ] Autenticação admin (Basic Auth ou NextAuth)
+- [ ] Análise de preços em tempo real
 
 ---
 
 ## Próximos Passos Técnicos
 
-### Fase 1: Página Menu
-1. Criar layout responsivo do menu
-2. Implementar catálogo de produtos com preços em tempo real
-3. Sistema de carrinho com lock de preços
-4. Fluxo de confirmação de pedido
-5. Integração com PriceFlash para feedback visual
+### Fase 1: Refinamento do Menu ✅ (Completo)
+- [x] Implementar componentes do menu
+- [x] Criar fluxo de compra com lock
+- [x] Integração com SSE para preços em tempo real
+- [x] Session management
+- [x] Query params (?table=M12) para identificação de mesa
 
-### Fase 2: API e Backend Real
-1. Implementar `/api/ordens/confirmar` (POST)
-2. Implementar `/api/ordens/look` (GET)
-3. Implementar `/api/stream/precos` (SSE)
-4. Configurar Postgres (schema SQL já documentado)
-5. Configurar Redis para locks e cache
-6. Migrar API admin para persistência real
+### Fase 2: Toasts e UX Detalhes
+1. Implementar Toast notification system (sucesso/erro)
+   - Sucesso em compra confirmada
+   - Erro em lock expirado
+   - Erro em falha de conexão
+2. Melhorar feedback visual
+   - Estados de carregamento
+   - Mensagens de erro mais descritivas
+   - Indicador de reconexão em tempo real
 
-### Fase 3: Motor de Precificação
+### Fase 3: Histórico e Análise
+1. Criar `/api/orders/history` para consulta de pedidos
+2. Implementar página de histórico do cliente
+3. Análise visual de tendências de preço
+4. Gráficos de histórico por produto
+
+### Fase 4: Motor de Precificação Real
 1. Implementar algoritmo de variação (decay, sensitivity)
-2. Processamento de trade events
+2. Processamento de trade events (demanda)
 3. Cálculo de tick a cada X segundos
-4. Atualização via SSE para clientes (telão + menu)
-5. Integração com PriceFlash no telão
+4. Integração com PriceFlash no telão
+5. Limites min/max (floor/cap) por produto
 
-### Fase 4: Produção
-1. Autenticação de mesas (QR codes)
+### Fase 5: Persistência
+1. Configurar Postgres (schema SQL)
+2. Configurar Redis para locks e cache
+3. Migrar APIs admin para persistência real
+4. Migrar sistema de lock para Redis com TTL
+
+### Fase 6: Autenticação
+1. Autenticação de mesas (QR codes → table ID)
 2. Autenticação admin (Basic Auth ou NextAuth)
-3. Logs e auditoria
-4. Deploy (Vercel + Supabase/Railway)
-5. Monitoramento de performance
+3. Validação de sessão no backend
+4. Rate limiting por sessão
+
+### Fase 7: Produção
+1. Deploy (Vercel + Supabase/Railway)
+2. Logs e auditoria
+3. Monitoramento de performance
+4. Validação de fluxo end-to-end
 
 ---
 
