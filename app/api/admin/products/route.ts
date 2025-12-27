@@ -1,161 +1,201 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { MOCK_PRODUCTS, MOCK_PRICE_STATE } from '@/data';
-import { validateTicker } from '@/lib/utils/ticker';
+import { createProduct, type CreateProductInput } from '@/lib/domain/products';
+import { prisma } from '@/lib/prisma';
 
-// GET /api/admin/products - Lista todos os produtos com filtros
+/**
+ * GET /api/admin/products
+ * Lista todos os produtos com seus preços atuais
+ */
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const categoryId = searchParams.get('categoryId');
-  const active = searchParams.get('active');
-  const search = searchParams.get('search');
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const category = searchParams.get('category');
+    const isActive = searchParams.get('isActive');
 
-  let products = [...MOCK_PRODUCTS];
+    // Monta filtros
+    const where: any = {};
+    if (category) {
+      where.category = category;
+    }
+    if (isActive !== null) {
+      where.is_active = isActive === 'true';
+    }
 
-  // Filtro por categoria
-  if (categoryId) {
-    products = products.filter((p) => p.category === categoryId);
-  }
+    // Busca produtos com price_states
+    const products = await prisma.products.findMany({
+      where,
+      include: {
+        price_states: true,
+      },
+      orderBy: [
+        { is_active: 'desc' },
+        { category: 'asc' },
+        { name: 'asc' },
+      ],
+    });
 
-  // Filtro por status
-  if (active !== null) {
-    const isActive = active === 'true';
-    products = products.filter((p) => p.isActive === isActive);
-  }
+    // Formata resposta
+    const formattedProducts = products.map((product) => {
+      const priceState = product.price_states;
+      return {
+        id: product.id,
+        sku: product.sku,
+        ticker: product.ticker,
+        tickerSource: product.ticker_source,
+        name: product.name,
+        description: product.description,
+        category: product.category,
+        isActive: product.is_active,
+        basePriceCents: product.base_price_cents,
+        priceFloorCents: product.price_floor_cents,
+        priceCapCents: product.price_cap_cents,
+        currentPriceCents: priceState?.price_cents ?? product.base_price_cents,
+        prevPriceCents: priceState?.prev_price_cents ?? product.base_price_cents,
+        tickSeq: priceState?.tick_seq ? Number(priceState.tick_seq) : 0,
+        createdAt: product.created_at.toISOString(),
+        updatedAt: product.updated_at.toISOString(),
+      };
+    });
 
-  // Filtro por busca
-  if (search) {
-    const searchLower = search.toLowerCase();
-    products = products.filter(
-      (p) =>
-        p.name.toLowerCase().includes(searchLower) ||
-        p.sku.toLowerCase().includes(searchLower)
+    return NextResponse.json({
+      products: formattedProducts,
+      total: formattedProducts.length,
+    });
+  } catch (error) {
+    console.error('[GET /api/admin/products] Error:', error);
+    return NextResponse.json(
+      { error: 'Erro ao buscar produtos' },
+      { status: 500 }
     );
   }
-
-  // Enriquece com preço atual
-  const productsWithPrice = products.map((product) => {
-    const priceState = MOCK_PRICE_STATE.find(
-      (ps) => ps.productId === product.id
-    );
-    return {
-      ...product,
-      currentPriceCents: priceState?.priceCents ?? product.basePriceCents,
-      prevPriceCents: priceState?.prevPriceCents ?? product.basePriceCents,
-      tickSeq: priceState?.tickSeq ?? 0,
-    };
-  });
-
-  return NextResponse.json({
-    products: productsWithPrice,
-    total: productsWithPrice.length,
-  });
 }
 
-// POST /api/admin/products - Cria novo produto
+/**
+ * POST /api/admin/products
+ * Cria novo produto com inicialização de price_states
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
+    // Extrai e valida campos
     const {
-      name,
       sku,
       ticker,
-      tickerSource,
+      tickerSource = 'MANUAL',
+      name,
       description,
       category,
+      isActive = true,
       basePriceCents,
       priceFloorCents,
       priceCapCents,
-      isActive,
     } = body;
 
-    // Validações
-    if (!name || !sku || !category) {
+    // Validação básica de tipos
+    if (typeof basePriceCents !== 'number' || basePriceCents <= 0) {
       return NextResponse.json(
-        { error: 'Campos obrigatórios: name, sku, category' },
+        { error: 'Preço base deve ser um número positivo' },
         { status: 400 }
       );
     }
 
-    // Valida ticker
-    if (!ticker) {
+    if (typeof priceFloorCents !== 'number' || priceFloorCents < 0) {
       return NextResponse.json(
-        { error: 'Ticker é obrigatório' },
+        { error: 'Preço mínimo deve ser um número não negativo' },
         { status: 400 }
       );
     }
 
-    const tickerValidation = validateTicker(ticker);
-    if (!tickerValidation.valid) {
+    if (typeof priceCapCents !== 'number' || priceCapCents <= 0) {
       return NextResponse.json(
-        { error: tickerValidation.error },
+        { error: 'Preço máximo deve ser um número positivo' },
         { status: 400 }
       );
     }
 
-    // Verifica se ticker já existe
-    const tickerExists = MOCK_PRODUCTS.some(
-      (p) => p.ticker.toUpperCase() === ticker.toUpperCase()
-    );
-    if (tickerExists) {
-      return NextResponse.json(
-        { error: 'Ticker já está em uso' },
-        { status: 400 }
-      );
-    }
-
-    if (priceFloorCents > basePriceCents) {
-      return NextResponse.json(
-        { error: 'Floor deve ser menor ou igual ao preço base' },
-        { status: 400 }
-      );
-    }
-
-    if (basePriceCents > priceCapCents) {
-      return NextResponse.json(
-        { error: 'Cap deve ser maior ou igual ao preço base' },
-        { status: 400 }
-      );
-    }
-
-    if (priceFloorCents >= priceCapCents) {
-      return NextResponse.json(
-        { error: 'Floor deve ser menor que Cap' },
-        { status: 400 }
-      );
-    }
-
-    // Cria novo produto (em produção, salvaria no banco)
-    const newProduct = {
-      id: `prod-${Date.now()}`,
-      sku,
-      ticker: ticker.toUpperCase(),
-      tickerSource: tickerSource || 'AUTO',
-      name,
-      description: description || '',
-      category,
-      isActive: isActive ?? true,
-      basePriceCents,
-      priceFloorCents,
-      priceCapCents,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+    // Prepara input para função de domínio
+    const input: CreateProductInput = {
+      sku: String(sku || '').trim(),
+      ticker: String(ticker || '').trim(),
+      tickerSource: tickerSource === 'AUTO' ? 'AUTO' : 'MANUAL',
+      name: String(name || '').trim(),
+      description: description ? String(description).trim() : null,
+      category: String(category || '').trim(),
+      isActive: Boolean(isActive),
+      basePriceCents: Math.round(basePriceCents),
+      priceFloorCents: Math.round(priceFloorCents),
+      priceCapCents: Math.round(priceCapCents),
     };
 
-    // Em produção: também criar price_state inicial
-    // const initialPriceState = {
-    //   productId: newProduct.id,
-    //   priceCents: basePriceCents,
-    //   prevPriceCents: basePriceCents,
-    //   tickSeq: currentTickSeq,
-    //   updatedAt: new Date(),
-    // };
+    // Chama função de domínio
+    const result = await createProduct(input);
 
-    return NextResponse.json({ product: newProduct }, { status: 201 });
-  } catch (error) {
+    if (!result.success) {
+      return NextResponse.json(
+        {
+          error: result.error,
+          code: result.code,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Busca produto criado para retornar
+    const createdProduct = await prisma.products.findUnique({
+      where: { id: result.productId! },
+      include: {
+        price_states: true,
+      },
+    });
+
+    if (!createdProduct) {
+      return NextResponse.json(
+        { error: 'Produto criado mas não encontrado' },
+        { status: 500 }
+      );
+    }
+
+    // Formata resposta
+    const priceState = createdProduct.price_states;
+    const formattedProduct = {
+      id: createdProduct.id,
+      sku: createdProduct.sku,
+      ticker: createdProduct.ticker,
+      tickerSource: createdProduct.ticker_source,
+      name: createdProduct.name,
+      description: createdProduct.description,
+      category: createdProduct.category,
+      isActive: createdProduct.is_active,
+      basePriceCents: createdProduct.base_price_cents,
+      priceFloorCents: createdProduct.price_floor_cents,
+      priceCapCents: createdProduct.price_cap_cents,
+      currentPriceCents: priceState?.price_cents ?? createdProduct.base_price_cents,
+      prevPriceCents: priceState?.prev_price_cents ?? createdProduct.base_price_cents,
+      tickSeq: priceState ? Number(priceState.tick_seq) : 0,
+      createdAt: createdProduct.created_at.toISOString(),
+      updatedAt: createdProduct.updated_at.toISOString(),
+    };
+
+    return NextResponse.json(
+      { product: formattedProduct },
+      { status: 201 }
+    );
+  } catch (error: any) {
+    console.error('[POST /api/admin/products] Error:', error);
+
+    // Erro de parsing JSON
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'JSON inválido no corpo da requisição' },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
       { error: 'Erro ao processar requisição' },
       { status: 500 }
     );
   }
 }
+

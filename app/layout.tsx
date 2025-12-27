@@ -31,6 +31,9 @@ const jetBrainsMono = localFont({
 export const metadata: Metadata = {
   title: "Bar Market",
   description: "Bebidas com preços dinâmicos em tempo real",
+  icons: {
+    icon: "/logo_bar_market.svg",
+  },
 };
 
 export default function RootLayout({
