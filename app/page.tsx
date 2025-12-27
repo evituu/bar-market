@@ -3,8 +3,19 @@ import { ArrowUpRight, TrendingUp, Settings } from "lucide-react";
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#0B0F14] font-sans">
-      <main className="flex w-full max-w-7xl flex-col items-center justify-center py-16 px-6 md:px-10">
+    <div className="relative flex min-h-screen items-center justify-center font-sans overflow-hidden">
+      {/* Background Image */}
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundImage: 'url(/CandleStick_Fundo.png)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+        }}
+      />
+
+      <main className="relative z-10 flex w-full max-w-7xl flex-col items-center justify-center py-16 px-6 md:px-10">
         {/* Header Section */}
         <header className="mb-16 text-center">
           <div className="flex items-center justify-center gap-4 mb-6">
@@ -27,7 +38,7 @@ export default function Home() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl">
           {/* Admin Card */}
           <Link href="/admin" className="group">
-            <article className="relative bg-[#111827] border border-[#1F2937] rounded-lg p-10 transition-all duration-300 hover:border-[#F59E0B] hover:shadow-xl hover:shadow-[#F59E0B]/10 hover:-translate-y-1">
+            <article className="relative backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-10 transition-all duration-300 hover:border-[#F59E0B]/50 hover:shadow-2xl hover:shadow-[#F59E0B]/20 hover:-translate-y-1 hover:bg-white/10">
               {/* Icon */}
               <div className="mb-6 inline-flex items-center justify-center w-14 h-14 rounded-lg bg-[#F59E0B]/10 text-[#F59E0B] group-hover:bg-[#F59E0B]/20 transition-colors">
                 <Settings className="w-7 h-7" />
@@ -47,13 +58,13 @@ export default function Home() {
               </div>
 
               {/* Decorative Element */}
-              <div className="absolute top-0 right-0 w-32 h-32 bg-[#F59E0B]/5 rounded-bl-full blur-2xl -z-10 group-hover:bg-[#F59E0B]/10 transition-colors" />
+              <div className="absolute top-0 right-0 w-32 h-32 bg-[#F59E0B]/10 rounded-bl-full blur-3xl -z-10 group-hover:bg-[#F59E0B]/20 transition-colors" />
             </article>
           </Link>
 
           {/* Telão Card */}
           <Link href="/telao" className="group">
-            <article className="relative bg-[#111827] border border-[#1F2937] rounded-lg p-10 transition-all duration-300 hover:border-[#16A34A] hover:shadow-xl hover:shadow-[#16A34A]/10 hover:-translate-y-1">
+            <article className="relative backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-10 transition-all duration-300 hover:border-[#16A34A]/50 hover:shadow-2xl hover:shadow-[#16A34A]/20 hover:-translate-y-1 hover:bg-white/10">
               {/* Icon */}
               <div className="mb-6 inline-flex items-center justify-center w-14 h-14 rounded-lg bg-[#16A34A]/10 text-[#16A34A] group-hover:bg-[#16A34A]/20 transition-colors">
                 <svg
@@ -85,13 +96,13 @@ export default function Home() {
               </div>
 
               {/* Decorative Element */}
-              <div className="absolute top-0 right-0 w-32 h-32 bg-[#16A34A]/5 rounded-bl-full blur-2xl -z-10 group-hover:bg-[#16A34A]/10 transition-colors" />
+              <div className="absolute top-0 right-0 w-32 h-32 bg-[#16A34A]/10 rounded-bl-full blur-3xl -z-10 group-hover:bg-[#16A34A]/20 transition-colors" />
             </article>
           </Link>
 
           {/* Menu Card */}
           <Link href="/menu" className="group">
-            <article className="relative bg-[#111827] border border-[#1F2937] rounded-lg p-10 transition-all duration-300 hover:border-[#2563EB] hover:shadow-xl hover:shadow-[#2563EB]/10 hover:-translate-y-1">
+            <article className="relative backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-10 transition-all duration-300 hover:border-[#2563EB]/50 hover:shadow-2xl hover:shadow-[#2563EB]/20 hover:-translate-y-1 hover:bg-white/10">
               {/* Icon */}
               <div className="mb-6 inline-flex items-center justify-center w-14 h-14 rounded-lg bg-[#2563EB]/10 text-[#2563EB] group-hover:bg-[#2563EB]/20 transition-colors">
                 <TrendingUp className="w-7 h-7" />
@@ -111,20 +122,11 @@ export default function Home() {
               </div>
 
               {/* Decorative Element */}
-              <div className="absolute top-0 right-0 w-32 h-32 bg-[#2563EB]/5 rounded-bl-full blur-2xl -z-10 group-hover:bg-[#2563EB]/10 transition-colors" />
+              <div className="absolute top-0 right-0 w-32 h-32 bg-[#2563EB]/10 rounded-bl-full blur-3xl -z-10 group-hover:bg-[#2563EB]/20 transition-colors" />
             </article>
           </Link>
         </div>
 
-        {/* Footer Info */}
-        <footer className="mt-16 text-center">
-          <p className="text-sm text-[#9CA3AF]">
-            <span className="inline-flex items-center gap-2">
-              <span className="w-2 h-2 bg-[#16A34A] rounded-full animate-pulse" />
-              Sistema de precificação em tempo real ativo
-            </span>
-          </p>
-        </footer>
       </main>
     </div>
   );
