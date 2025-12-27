@@ -227,3 +227,86 @@ export async function getAllCategoriesFromDB(): Promise<string[]> {
   }
 }
 
+/**
+ * Interface compatível com ProductWithPrice dos mocks
+ * Usada para manter compatibilidade com componentes existentes
+ * 
+ * Nota: Este tipo deve ser compatível com o tipo ProductWithPrice de @/data
+ * para que os componentes do telão funcionem corretamente
+ */
+export interface ProductWithPrice {
+  id: string;
+  sku: string;
+  ticker: string;
+  tickerSource: 'AUTO' | 'MANUAL';
+  name: string;
+  description: string | null;
+  category: string;
+  isActive: boolean;
+  basePriceCents: number;
+  priceFloorCents: number;
+  priceCapCents: number;
+  currentPriceCents: number;
+  prevPriceCents: number;
+  priceChange: number; // percentual: (current - prev) / prev
+  tickSeq: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Busca produtos do banco com preços formatados
+ * Retorna no formato ProductWithPrice para compatibilidade com componentes
+ */
+export async function getProductsWithPricesFromDB(): Promise<ProductWithPrice[]> {
+  try {
+    const products = await prisma.products.findMany({
+      where: {
+        is_active: true, // Apenas produtos ativos para o telão
+      },
+      include: {
+        price_states: true,
+      },
+      orderBy: [
+        { category: 'asc' },
+        { name: 'asc' },
+      ],
+    });
+
+    return products.map((product) => {
+      const priceState = product.price_states;
+      const currentPriceCents = priceState?.price_cents ?? product.base_price_cents;
+      const prevPriceCents = priceState?.prev_price_cents ?? product.base_price_cents;
+      
+      // Calcula variação percentual
+      const priceChange =
+        prevPriceCents > 0
+          ? (currentPriceCents - prevPriceCents) / prevPriceCents
+          : 0;
+
+      return {
+        id: product.id,
+        sku: product.sku,
+        ticker: product.ticker,
+        tickerSource: product.ticker_source as 'AUTO' | 'MANUAL',
+        name: product.name,
+        description: product.description,
+        category: product.category,
+        isActive: product.is_active,
+        basePriceCents: product.base_price_cents,
+        priceFloorCents: product.price_floor_cents,
+        priceCapCents: product.price_cap_cents,
+        currentPriceCents,
+        prevPriceCents,
+        priceChange,
+        tickSeq: priceState ? Number(priceState.tick_seq) : 0,
+        createdAt: new Date(product.created_at),
+        updatedAt: new Date(product.updated_at),
+      };
+    });
+  } catch (error) {
+    console.error('[getProductsWithPricesFromDB] Error:', error);
+    return [];
+  }
+}
+

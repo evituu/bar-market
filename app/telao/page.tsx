@@ -1,12 +1,13 @@
-import { getProductsWithPrices } from '@/data';
+import { getProductsWithPricesFromDB } from '@/lib/domain/products';
 import {
   MarketHeader,
   TickerTape,
   DrinkValueBoard,
 } from './_components';
 
-export default function TelaoPage() {
-  const products = getProductsWithPrices();
+export default async function TelaoPage() {
+  // Busca produtos do banco de dados (apenas ativos)
+  const products = await getProductsWithPricesFromDB();
   const tickSeq = products[0]?.tickSeq ?? 0;
 
   return (
