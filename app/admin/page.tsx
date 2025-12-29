@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Package, Tags, Activity, TrendingUp, TrendingDown, Zap, Gift, Snowflake } from 'lucide-react';
 import {
   getProductsWithPrices,
@@ -14,7 +14,7 @@ import {
   MarketTable,
 } from './_components';
 
-type MarketEvent = 'CRASH' | 'PROMO' | 'FREEZE' | null;
+type MarketEvent = 'CRASH' | 'RESET' | 'FREEZE' | 'MALUCO' | null;
 
 export default function AdminDashboard() {
   const [activeEvent, setActiveEvent] = useState<MarketEvent>(null);
@@ -38,19 +38,77 @@ export default function AdminDashboard() {
     if (activeEvent === event) {
       // Desativar evento
       setEventLoading(event);
-      // TODO: POST /api/admin/market-event { event: null }
-      await new Promise((r) => setTimeout(r, 500)); // Simula API
-      setActiveEvent(null);
-      setEventLoading(null);
+      try {
+        const response = await fetch('/api/admin/market-event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event: null }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          console.error('[Admin] Erro ao desativar evento:', error);
+          alert('Erro ao desativar evento. Tente novamente.');
+          setEventLoading(null);
+          return;
+        }
+
+        setActiveEvent(null);
+      } catch (error) {
+        console.error('[Admin] Erro na requisição:', error);
+        alert('Erro de conexão. Tente novamente.');
+      } finally {
+        setEventLoading(null);
+      }
     } else {
       // Ativar evento
       setEventLoading(event);
-      // TODO: POST /api/admin/market-event { event }
-      await new Promise((r) => setTimeout(r, 500)); // Simula API
-      setActiveEvent(event);
-      setEventLoading(null);
+      try {
+        // Duração padrão: 60 minutos (ou até desativar manualmente)
+        // Para MALUCO, o intervalo de 15s é gerenciado internamente
+        const durationMinutes = event === 'MALUCO' ? 60 : 60;
+
+        const response = await fetch('/api/admin/market-event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event, durationMinutes }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          console.error('[Admin] Erro ao ativar evento:', error);
+          alert(`Erro ao ativar evento: ${error.error || 'Erro desconhecido'}`);
+          setEventLoading(null);
+          return;
+        }
+
+        const data = await response.json();
+        setActiveEvent(event);
+      } catch (error) {
+        console.error('[Admin] Erro na requisição:', error);
+        alert('Erro de conexão. Tente novamente.');
+      } finally {
+        setEventLoading(null);
+      }
     }
   };
+
+  // Busca evento ativo ao carregar página
+  useEffect(() => {
+    const fetchActiveEvent = async () => {
+      try {
+        const response = await fetch('/api/admin/market-event');
+        if (response.ok) {
+          const data = await response.json();
+          setActiveEvent(data.event as MarketEvent);
+        }
+      } catch (error) {
+        console.error('[Admin] Erro ao buscar evento ativo:', error);
+      }
+    };
+
+    fetchActiveEvent();
+  }, []);
 
   return (
     <AdminLayout>
@@ -81,24 +139,26 @@ export default function AdminDashboard() {
             )}
           </button>
 
-          {/* PROMO Button */}
+          {/* RESET Button */}
           <button
-            onClick={() => handleEventClick('PROMO')}
+            onClick={() => handleEventClick('RESET')}
             disabled={eventLoading !== null}
             className={`
               flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all
-              ${activeEvent === 'PROMO'
-                ? 'bg-[#00E676] text-[#0B0F14] shadow-lg shadow-[#00E676]/30 ring-2 ring-[#00E676]/50'
-                : 'bg-[#1F2937] text-[#00E676] hover:bg-[#00E676]/10 border border-[#00E676]/30'
+              ${activeEvent === 'RESET'
+                ? 'bg-[#6B7280] text-white shadow-lg shadow-[#6B7280]/30 ring-2 ring-[#6B7280]/50'
+                : 'bg-[#1F2937] text-[#6B7280] hover:bg-[#6B7280]/10 border border-[#6B7280]/30'
               }
-              ${eventLoading === 'PROMO' ? 'opacity-70 cursor-wait' : ''}
+              ${eventLoading === 'RESET' ? 'opacity-70 cursor-wait' : ''}
               disabled:opacity-50 disabled:cursor-not-allowed
             `}
           >
-            <Gift className={`w-4 h-4 ${eventLoading === 'PROMO' ? 'animate-pulse' : ''}`} />
-            PROMO
-            {activeEvent === 'PROMO' && (
-              <span className="ml-1 px-1.5 py-0.5 bg-black/20 rounded text-xs">ATIVO</span>
+            <svg className={`w-4 h-4 ${eventLoading === 'RESET' ? 'animate-pulse' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            RESET
+            {activeEvent === 'RESET' && (
+              <span className="ml-1 px-1.5 py-0.5 bg-white/20 rounded text-xs">ATIVO</span>
             )}
           </button>
 
@@ -122,6 +182,27 @@ export default function AdminDashboard() {
               <span className="ml-1 px-1.5 py-0.5 bg-white/20 rounded text-xs">ATIVO</span>
             )}
           </button>
+
+          {/* MALUCO Button */}
+          <button
+            onClick={() => handleEventClick('MALUCO')}
+            disabled={eventLoading !== null}
+            className={`
+              flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all
+              ${activeEvent === 'MALUCO'
+                ? 'bg-[#A855F7] text-white shadow-lg shadow-[#A855F7]/30 ring-2 ring-[#A855F7]/50'
+                : 'bg-[#1F2937] text-[#A855F7] hover:bg-[#A855F7]/10 border border-[#A855F7]/30'
+              }
+              ${eventLoading === 'MALUCO' ? 'opacity-70 cursor-wait' : ''}
+              disabled:opacity-50 disabled:cursor-not-allowed
+            `}
+          >
+            <Zap className={`w-4 h-4 ${eventLoading === 'MALUCO' ? 'animate-bounce' : ''}`} />
+            MALUCO
+            {activeEvent === 'MALUCO' && (
+              <span className="ml-1 px-1.5 py-0.5 bg-white/20 rounded text-xs">ATIVO</span>
+            )}
+          </button>
         </div>
 
         {/* Event Description */}
@@ -129,12 +210,14 @@ export default function AdminDashboard() {
           <div className={`
             mt-3 px-4 py-2 rounded-lg text-sm
             ${activeEvent === 'CRASH' ? 'bg-[#FF1744]/10 text-[#FF1744] border border-[#FF1744]/20' : ''}
-            ${activeEvent === 'PROMO' ? 'bg-[#00E676]/10 text-[#00E676] border border-[#00E676]/20' : ''}
+            ${activeEvent === 'RESET' ? 'bg-[#6B7280]/10 text-[#6B7280] border border-[#6B7280]/20' : ''}
             ${activeEvent === 'FREEZE' ? 'bg-[#2563EB]/10 text-[#2563EB] border border-[#2563EB]/20' : ''}
+            ${activeEvent === 'MALUCO' ? 'bg-[#A855F7]/10 text-[#A855F7] border border-[#A855F7]/20' : ''}
           `}>
             {activeEvent === 'CRASH' && '⚡ CRASH ativo! Todos os preços caindo rapidamente.'}
-            {activeEvent === 'PROMO' && '🎁 PROMO ativo! Descontos especiais aplicados.'}
+            {activeEvent === 'RESET' && '🔄 RESET ativo! Todos os preços restaurados para o valor base.'}
             {activeEvent === 'FREEZE' && '❄️ FREEZE ativo! Preços congelados temporariamente.'}
+            {activeEvent === 'MALUCO' && '🤪 MALUCO ativo! Preços oscilando loucamente a cada 15 segundos!'}
           </div>
         )}
       </div>

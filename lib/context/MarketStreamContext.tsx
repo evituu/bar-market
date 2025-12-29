@@ -9,13 +9,14 @@ import {
   useRef,
   ReactNode,
 } from 'react';
-import type { ProductWithPrice } from '@/data';
+import type { ProductWithPrice } from '@/lib/domain/products';
 
 // Snapshot de mercado recebido via SSE
 export interface MarketSnapshot {
   tick: number;
   timestamp: string;
   products: ProductWithPrice[];
+  activeEvent?: string | null;
 }
 
 interface MarketStreamContextValue {

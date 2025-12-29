@@ -4,3 +4,4 @@ export { MarketHeader } from './MarketHeader';
 export { TickerTape } from './TickerTape';
 export { DrinkValueBoard } from './DrinkValueBoard';
 export { PriceFlash } from './PriceFlash';
+export { TelaoClient } from './TelaoClient';

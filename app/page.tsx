@@ -111,7 +111,7 @@ export default function Home() {
               {/* Content */}
               <div className="mb-6">
                 <h2 className="text-2xl font-semibold text-[#E5E7EB] mb-3 group-hover:text-[#2563EB] transition-colors">
-                  Menu Interativo
+                  Cardápio
                 </h2>
               </div>
 
