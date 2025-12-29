@@ -9,6 +9,7 @@ import {
   ClipboardList,
   ArrowLeft,
   Activity,
+  FileText,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -20,6 +21,7 @@ const navItems = [
   { href: '/admin/products', label: 'Produtos', icon: Package },
   { href: '/admin/categories', label: 'Categorias', icon: Tags },
   { href: '/admin/pedidos', label: 'Pedidos', icon: ClipboardList },
+  { href: '/admin/auditoria', label: 'Auditoria', icon: FileText },
 ];
 
 export function AdminLayout({ children }: AdminLayoutProps) {
