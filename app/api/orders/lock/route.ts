@@ -1,49 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPriceStateByProductId, getProductById } from '@/data';
-
-// Store em memória para locks (em produção: Redis)
-const priceLocks = new Map<
-  string,
-  {
-    orderId: string;
-    lockId: string;
-    productId: string;
-    qty: number;
-    lockedPriceCents: number;
-    sessionId: string;
-    tableId: string;
-    expiresAt: Date;
-    status: 'pending' | 'confirmed' | 'expired';
-  }
->();
+import { prisma } from '@/lib/prisma';
+import { getProductsWithPricesFromDB } from '@/lib/domain/products';
 
 // TTL do lock em segundos
-const LOCK_TTL_SECONDS = 15;
+const LOCK_TTL_SECONDS = 30;
 
-// Limpa locks expirados periodicamente
-function cleanExpiredLocks() {
-  const now = new Date();
-  for (const [lockId, lock] of priceLocks.entries()) {
-    if (lock.expiresAt < now && lock.status === 'pending') {
-      priceLocks.set(lockId, { ...lock, status: 'expired' });
-    }
-  }
-}
-
-// POST /api/orders/lock - Cria um price lock
+// POST /api/orders/lock - Cria locks de preço para múltiplos itens
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { productId, qty = 1, sessionId, tableId } = body;
+    const { sessionId, tableCode, items, note } = body;
 
     // Validações
-    if (!productId) {
-      return NextResponse.json(
-        { error: 'productId é obrigatório' },
-        { status: 400 }
-      );
-    }
-
     if (!sessionId) {
       return NextResponse.json(
         { error: 'sessionId é obrigatório' },
@@ -51,105 +19,122 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verifica se produto existe
-    const product = getProductById(productId);
-    if (!product) {
+    if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
-        { error: 'Produto não encontrado' },
-        { status: 404 }
+        { error: 'items deve ser um array não vazio' },
+        { status: 400 }
       );
     }
 
-    // Obtém preço atual
-    const priceState = getPriceStateByProductId(productId);
-    const currentPriceCents = priceState?.priceCents ?? product.basePriceCents;
+    // Valida cada item
+    for (const item of items) {
+      if (!item.productId || !item.qty || item.qty < 1) {
+        return NextResponse.json(
+          { error: 'Cada item deve ter productId e qty >= 1' },
+          { status: 400 }
+        );
+      }
+    }
 
-    // Limpa locks expirados
-    cleanExpiredLocks();
+    // Busca produtos e preços atuais
+    const products = await getProductsWithPricesFromDB();
+    const productMap = new Map(products.map((p) => [p.id, p]));
 
-    // Gera IDs únicos
-    const orderId = `order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const lockId = `lock-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // Valida que todos os produtos existem e estão ativos
+    for (const item of items) {
+      const product = productMap.get(item.productId);
+      if (!product) {
+        return NextResponse.json(
+          { error: `Produto ${item.productId} não encontrado` },
+          { status: 404 }
+        );
+      }
+      if (!product.isActive) {
+        return NextResponse.json(
+          { error: `Produto ${product.name} está inativo` },
+          { status: 400 }
+        );
+      }
+    }
 
-    // Calcula expiração
-    const expiresAt = new Date(Date.now() + LOCK_TTL_SECONDS * 1000);
+    // Busca mesa se tableCode fornecido
+    let tableId: string | null = null;
+    if (tableCode) {
+      const table = await prisma.tables.findUnique({
+        where: { code: tableCode },
+      });
+      if (table) {
+        tableId = table.id;
+      }
+    }
 
-    // Cria o lock
-    const lock = {
-      orderId,
-      lockId,
-      productId,
-      qty,
-      lockedPriceCents: currentPriceCents,
-      sessionId,
-      tableId: tableId || 'unknown',
-      expiresAt,
-      status: 'pending' as const,
-    };
+    // Cria pedido e locks em transação
+    const result = await prisma.$transaction(async (tx) => {
+      // Cria pedido PENDING
+      const order = await tx.orders.create({
+        data: {
+          session_id: sessionId,
+          status: 'PENDING',
+          total_cents: 0, // Será calculado na confirmação
+          ...(note && { note: note.trim() }),
+        },
+      });
 
-    priceLocks.set(lockId, lock);
+      // Calcula expiração
+      const expiresAt = new Date(Date.now() + LOCK_TTL_SECONDS * 1000);
+
+      // Cria locks para cada item
+      const locks = [];
+      for (const item of items) {
+        const product = productMap.get(item.productId)!;
+        const lockedPriceCents = product.currentPriceCents;
+
+        const lock = await tx.price_locks.create({
+          data: {
+            order_id: order.id,
+            product_id: item.productId,
+            qty: item.qty,
+            locked_price_cents: lockedPriceCents,
+            expires_at: expiresAt,
+            status: 'ACTIVE',
+          },
+        });
+
+        locks.push({
+          lockId: lock.id,
+          productId: item.productId,
+          productName: product.name,
+          qty: item.qty,
+          lockedPriceCents,
+          lineTotalCents: lockedPriceCents * item.qty,
+        });
+      }
+
+      return {
+        orderId: order.id,
+        expiresAt,
+        locks,
+      };
+    });
+
+    // Calcula total
+    const totalCents = result.locks.reduce(
+      (sum, lock) => sum + lock.lineTotalCents,
+      0
+    );
 
     return NextResponse.json({
-      orderId,
-      lockId,
-      productId,
-      productName: product.name,
-      qty,
-      lockedPriceCents: currentPriceCents,
-      totalCents: currentPriceCents * qty,
-      expiresAt: expiresAt.toISOString(),
+      orderId: result.orderId,
+      expiresAt: result.expiresAt.toISOString(),
       ttlSeconds: LOCK_TTL_SECONDS,
+      locks: result.locks,
+      totalCents,
     });
-  } catch (error) {
-    console.error('[API] Erro ao criar lock:', error);
+  } catch (error: any) {
+    console.error('[API] Erro ao criar locks:', error);
     return NextResponse.json(
       { error: 'Erro ao processar requisição' },
       { status: 500 }
     );
   }
 }
-
-// GET /api/orders/lock?lockId=xxx - Consulta status do lock
-export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const lockId = searchParams.get('lockId');
-
-  if (!lockId) {
-    return NextResponse.json(
-      { error: 'lockId é obrigatório' },
-      { status: 400 }
-    );
-  }
-
-  cleanExpiredLocks();
-
-  const lock = priceLocks.get(lockId);
-  if (!lock) {
-    return NextResponse.json(
-      { error: 'Lock não encontrado' },
-      { status: 404 }
-    );
-  }
-
-  const now = new Date();
-  const isExpired = lock.expiresAt < now;
-  const remainingSeconds = Math.max(
-    0,
-    Math.floor((lock.expiresAt.getTime() - now.getTime()) / 1000)
-  );
-
-  return NextResponse.json({
-    lockId: lock.lockId,
-    orderId: lock.orderId,
-    productId: lock.productId,
-    qty: lock.qty,
-    lockedPriceCents: lock.lockedPriceCents,
-    totalCents: lock.lockedPriceCents * lock.qty,
-    expiresAt: lock.expiresAt.toISOString(),
-    remainingSeconds,
-    status: isExpired ? 'expired' : lock.status,
-  });
-}
-
-// Exporta o map de locks para uso no confirm
-export { priceLocks };

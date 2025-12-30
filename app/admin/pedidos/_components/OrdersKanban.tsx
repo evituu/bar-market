@@ -2,17 +2,33 @@
 
 import { OrderCard } from './OrderCard';
 import { Clock, Play, CheckCircle, Truck } from 'lucide-react';
-import type { Order, OrderStatus } from '@/lib/stores/ordersStore';
+
+type KdsStatus = 'QUEUED' | 'IN_PROGRESS' | 'READY' | 'DELIVERED';
+
+interface Order {
+  id: string;
+  tableCode: string | null;
+  kdsStatus: KdsStatus;
+  totalCents: number;
+  note: string | null;
+  confirmedAt: string | null;
+  createdAt: string;
+  items: Array<{
+    productName: string;
+    qty: number;
+    lineTotalCents: number;
+  }>;
+}
 
 interface OrdersKanbanProps {
   orders: Order[];
-  onUpdateStatus: (orderId: string, newStatus: OrderStatus) => void;
+  onUpdateStatus: (orderId: string, newStatus: KdsStatus) => void;
   updatingOrderId: string | null;
   showDelivered: boolean;
 }
 
 interface ColumnConfig {
-  status: OrderStatus;
+  status: KdsStatus;
   title: string;
   icon: React.ComponentType<{ className?: string }>;
   color: string;
@@ -21,8 +37,8 @@ interface ColumnConfig {
 
 const COLUMNS: ColumnConfig[] = [
   {
-    status: 'NEW',
-    title: 'Novos',
+    status: 'QUEUED',
+    title: 'Em Fila',
     icon: Clock,
     color: 'text-[#F59E0B]',
     bgColor: 'bg-[#F59E0B]/10',
@@ -62,8 +78,8 @@ export function OrdersKanban({
     : COLUMNS.filter((c) => c.status !== 'DELIVERED');
 
   // Agrupa pedidos por status
-  const ordersByStatus = (status: OrderStatus) =>
-    orders.filter((o) => o.status === status);
+  const ordersByStatus = (status: KdsStatus) =>
+    orders.filter((o) => o.kdsStatus === status);
 
   return (
     <div

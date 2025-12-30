@@ -3,20 +3,18 @@
 import { useMemo } from 'react';
 import { useMarketStream } from '@/lib/context';
 import { ProductCard } from './ProductCard';
-import type { ProductWithPrice } from '@/data';
+import type { ProductWithPrice } from '@/lib/domain/products';
 
 interface ProductListProps {
   selectedCategory: string;
   searchQuery: string;
-  loadingProductId: string | null;
-  onBuy: (product: ProductWithPrice) => void;
+  onAddToCart: (product: ProductWithPrice) => void;
 }
 
 export function ProductList({
   selectedCategory,
   searchQuery,
-  loadingProductId,
-  onBuy,
+  onAddToCart,
 }: ProductListProps) {
   const { snapshot, isConnected } = useMarketStream();
 
@@ -78,8 +76,7 @@ export function ProductList({
         <ProductCard
           key={product.id}
           product={product}
-          onBuy={onBuy}
-          isLoading={loadingProductId === product.id}
+          onAddToCart={onAddToCart}
         />
       ))}
     </div>

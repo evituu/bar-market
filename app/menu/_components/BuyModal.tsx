@@ -6,14 +6,17 @@ import { formatCurrency } from '@/data';
 
 interface LockData {
   orderId: string;
-  lockId: string;
-  productId: string;
-  productName: string;
-  qty: number;
-  lockedPriceCents: number;
-  totalCents: number;
   expiresAt: string;
   ttlSeconds: number;
+  locks: Array<{
+    lockId: string;
+    productId: string;
+    productName: string;
+    qty: number;
+    lockedPriceCents: number;
+    lineTotalCents: number;
+  }>;
+  totalCents: number;
 }
 
 interface BuyModalProps {
@@ -21,7 +24,8 @@ interface BuyModalProps {
   lockData: LockData | null;
   sessionId: string;
   onClose: () => void;
-  onConfirmSuccess: () => void;
+  onConfirm: () => void;
+  isLoading: boolean;
 }
 
 type ModalState = 'countdown' | 'confirming' | 'success' | 'expired' | 'error';
@@ -31,7 +35,8 @@ export function BuyModal({
   lockData,
   sessionId,
   onClose,
-  onConfirmSuccess,
+  onConfirm,
+  isLoading,
 }: BuyModalProps) {
   const [state, setState] = useState<ModalState>('countdown');
   const [remainingSeconds, setRemainingSeconds] = useState(0);
@@ -67,44 +72,18 @@ export function BuyModal({
     }
   }, [isOpen, lockData]);
 
-  // Confirma pedido
-  const handleConfirm = useCallback(async () => {
-    if (!lockData) return;
-
-    setState('confirming');
-
-    try {
-      const response = await fetch('/api/orders/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: lockData.orderId,
-          lockId: lockData.lockId,
-          sessionId,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (data.code === 'LOCK_EXPIRED') {
-          setState('expired');
-        } else {
-          setState('error');
-          setErrorMessage(data.error || 'Erro ao confirmar pedido');
-        }
-        return;
-      }
-
+  // Estado de loading externo
+  useEffect(() => {
+    if (isLoading && state === 'countdown') {
+      setState('confirming');
+    } else if (!isLoading && state === 'confirming') {
+      // Se parou de carregar e estava confirmando, assume sucesso
       setState('success');
       setTimeout(() => {
-        onConfirmSuccess();
+        onClose();
       }, 2000);
-    } catch (error) {
-      setState('error');
-      setErrorMessage('Erro de conexão. Tente novamente.');
     }
-  }, [lockData, sessionId, onConfirmSuccess]);
+  }, [isLoading, state, onClose]);
 
   if (!isOpen || !lockData) return null;
 
@@ -127,15 +106,21 @@ export function BuyModal({
         {/* Conteúdo baseado no estado */}
         {state === 'countdown' && (
           <>
-            {/* Produto e preço */}
-            <div className="bg-[#0B0F14] rounded-xl p-4 mb-4">
-              <p className="text-[#E5E7EB] font-medium mb-2">
-                {lockData.productName}
-              </p>
-              <div className="flex items-center justify-between">
-                <span className="text-[#9CA3AF] text-sm">
-                  {lockData.qty}x {formatCurrency(lockData.lockedPriceCents)}
-                </span>
+            {/* Itens do pedido */}
+            <div className="bg-[#0B0F14] rounded-xl p-4 mb-4 space-y-2">
+              {lockData.locks.map((lock) => (
+                <div key={lock.lockId} className="flex items-center justify-between">
+                  <span className="text-[#E5E7EB] text-sm">
+                    <span className="font-semibold text-[#F59E0B]">{lock.qty}x</span>{' '}
+                    {lock.productName}
+                  </span>
+                  <span className="text-sm font-market text-[#9CA3AF]">
+                    {formatCurrency(lock.lineTotalCents)}
+                  </span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between pt-2 border-t border-[#1F2937]">
+                <span className="text-[#9CA3AF] text-sm">Total:</span>
                 <span className="text-xl font-bold font-market-semibold text-[#E5E7EB]">
                   {formatCurrency(lockData.totalCents)}
                 </span>
@@ -153,8 +138,9 @@ export function BuyModal({
 
             {/* Botão confirmar */}
             <button
-              onClick={handleConfirm}
-              className="w-full py-4 bg-[#00E676] text-[#0B0F14] rounded-xl font-semibold text-base hover:bg-[#00C853] active:scale-98 transition-all"
+              onClick={onConfirm}
+              disabled={isLoading || remainingSeconds === 0}
+              className="w-full py-4 bg-[#00E676] text-[#0B0F14] rounded-xl font-semibold text-base hover:bg-[#00C853] active:scale-98 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Confirmar Pedido
             </button>
@@ -179,7 +165,7 @@ export function BuyModal({
               Pedido Confirmado!
             </h3>
             <p className="text-[#9CA3AF]">
-              {lockData.productName} por {formatCurrency(lockData.totalCents)}
+              Total: {formatCurrency(lockData.totalCents)}
             </p>
           </div>
         )}

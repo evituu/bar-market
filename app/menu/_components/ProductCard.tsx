@@ -2,19 +2,17 @@
 
 import { memo } from 'react';
 import { ShoppingCart } from 'lucide-react';
-import type { ProductWithPrice } from '@/data';
+import type { ProductWithPrice } from '@/lib/domain/products';
 import { formatCurrency } from '@/data';
 
 interface ProductCardProps {
   product: ProductWithPrice;
-  onBuy: (product: ProductWithPrice) => void;
-  isLoading?: boolean;
+  onAddToCart: (product: ProductWithPrice) => void;
 }
 
 export const ProductCard = memo(function ProductCard({
   product,
-  onBuy,
-  isLoading = false,
+  onAddToCart,
 }: ProductCardProps) {
   const isUp = product.priceChange > 0;
   const isDown = product.priceChange < 0;
@@ -65,25 +63,13 @@ export const ProductCard = memo(function ProductCard({
         </div>
       </div>
 
-      {/* Botão Comprar */}
+      {/* Botão Adicionar ao Carrinho */}
       <button
-        onClick={() => onBuy(product)}
-        disabled={isLoading}
-        className={`
-          flex items-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-all
-          ${
-            isLoading
-              ? 'bg-[#374151] text-[#9CA3AF] cursor-not-allowed'
-              : 'bg-[#F59E0B] text-[#0B0F14] hover:bg-[#D97706] active:scale-95'
-          }
-        `}
+        onClick={() => onAddToCart(product)}
+        className="flex items-center gap-2 px-5 py-3 bg-[#F59E0B] text-[#0B0F14] rounded-xl font-semibold text-sm hover:bg-[#D97706] active:scale-95 transition-all"
       >
-        {isLoading ? (
-          <div className="w-4 h-4 border-2 border-[#9CA3AF] border-t-transparent rounded-full animate-spin" />
-        ) : (
-          <ShoppingCart className="w-4 h-4" />
-        )}
-        <span>{isLoading ? 'Travando...' : 'Comprar'}</span>
+        <ShoppingCart className="w-4 h-4" />
+        <span>Adicionar</span>
       </button>
     </div>
   );

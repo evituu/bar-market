@@ -1,12 +1,28 @@
 'use client';
 
-import { Clock, ChefHat, Wine, Play, CheckCircle, Truck, X } from 'lucide-react';
+import { Clock, Play, CheckCircle, Truck, X } from 'lucide-react';
 import { formatCurrency } from '@/data';
-import type { Order, OrderStatus } from '@/lib/stores/ordersStore';
+
+type KdsStatus = 'QUEUED' | 'IN_PROGRESS' | 'READY' | 'DELIVERED';
+
+interface Order {
+  id: string;
+  tableCode: string | null;
+  kdsStatus: KdsStatus;
+  totalCents: number;
+  note: string | null;
+  confirmedAt: string | null;
+  createdAt: string;
+  items: Array<{
+    productName: string;
+    qty: number;
+    lineTotalCents: number;
+  }>;
+}
 
 interface OrderCardProps {
   order: Order;
-  onUpdateStatus: (orderId: string, newStatus: OrderStatus) => void;
+  onUpdateStatus: (orderId: string, newStatus: KdsStatus) => void;
   isUpdating: boolean;
 }
 
@@ -26,53 +42,46 @@ function getRelativeTime(isoDate: string): string {
 }
 
 // Cores por status
-const STATUS_COLORS: Record<OrderStatus, { bg: string; border: string; text: string }> = {
-  NEW: { bg: 'bg-[#F59E0B]/10', border: 'border-[#F59E0B]', text: 'text-[#F59E0B]' },
+const STATUS_COLORS: Record<KdsStatus, { bg: string; border: string; text: string }> = {
+  QUEUED: { bg: 'bg-[#F59E0B]/10', border: 'border-[#F59E0B]', text: 'text-[#F59E0B]' },
   IN_PROGRESS: { bg: 'bg-[#2563EB]/10', border: 'border-[#2563EB]', text: 'text-[#2563EB]' },
   READY: { bg: 'bg-[#00E676]/10', border: 'border-[#00E676]', text: 'text-[#00E676]' },
   DELIVERED: { bg: 'bg-[#6B7280]/10', border: 'border-[#6B7280]', text: 'text-[#6B7280]' },
-  CANCELED: { bg: 'bg-[#FF1744]/10', border: 'border-[#FF1744]', text: 'text-[#FF1744]' },
 };
 
 // Labels de status
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  NEW: 'Novo',
-  IN_PROGRESS: 'Em preparo',
+const STATUS_LABELS: Record<KdsStatus, string> = {
+  QUEUED: 'Em Fila',
+  IN_PROGRESS: 'Em Preparo',
   READY: 'Pronto',
   DELIVERED: 'Entregue',
-  CANCELED: 'Cancelado',
 };
 
 export function OrderCard({ order, onUpdateStatus, isUpdating }: OrderCardProps) {
-  const colors = STATUS_COLORS[order.status];
-  const relativeTime = getRelativeTime(order.createdAt);
-  
-  // Determina área de preparo predominante
-  const prepAreas = [...new Set(order.items.map((i) => i.prepArea))];
-  const isBar = prepAreas.includes('BAR');
-  const isKitchen = prepAreas.includes('KITCHEN');
+  const colors = STATUS_COLORS[order.kdsStatus];
+  const relativeTime = getRelativeTime(order.confirmedAt || order.createdAt);
 
   // Ação disponível baseada no status
   const getAction = () => {
-    switch (order.status) {
-      case 'NEW':
+    switch (order.kdsStatus) {
+      case 'QUEUED':
         return {
           label: 'Iniciar Preparo',
-          nextStatus: 'IN_PROGRESS' as OrderStatus,
+          nextStatus: 'IN_PROGRESS' as KdsStatus,
           icon: Play,
           color: 'bg-[#2563EB] hover:bg-[#1D4ED8]',
         };
       case 'IN_PROGRESS':
         return {
           label: 'Marcar Pronto',
-          nextStatus: 'READY' as OrderStatus,
+          nextStatus: 'READY' as KdsStatus,
           icon: CheckCircle,
           color: 'bg-[#00E676] hover:bg-[#00C853] text-[#0B0F14]',
         };
       case 'READY':
         return {
           label: 'Entregar',
-          nextStatus: 'DELIVERED' as OrderStatus,
+          nextStatus: 'DELIVERED' as KdsStatus,
           icon: Truck,
           color: 'bg-[#8B5CF6] hover:bg-[#7C3AED]',
         };
@@ -88,7 +97,7 @@ export function OrderCard({ order, onUpdateStatus, isUpdating }: OrderCardProps)
       className={`
         rounded-xl border-l-4 ${colors.border} ${colors.bg}
         bg-[#111827] p-4 transition-all
-        ${order.status === 'NEW' ? 'ring-2 ring-[#F59E0B]/30 animate-pulse-subtle' : ''}
+        ${order.kdsStatus === 'QUEUED' ? 'ring-2 ring-[#F59E0B]/30 animate-pulse-subtle' : ''}
       `}
     >
       {/* Header: Mesa + Tempo */}
@@ -96,24 +105,8 @@ export function OrderCard({ order, onUpdateStatus, isUpdating }: OrderCardProps)
         <div className="flex items-center gap-3">
           {/* Mesa em destaque */}
           <span className="text-2xl font-bold font-market text-[#E5E7EB]">
-            {order.tableId || '—'}
+            {order.tableCode || '—'}
           </span>
-          
-          {/* Badges de área */}
-          <div className="flex gap-1">
-            {isBar && (
-              <span className="flex items-center gap-1 px-2 py-0.5 bg-[#F59E0B]/20 text-[#F59E0B] text-xs font-semibold rounded">
-                <Wine className="w-3 h-3" />
-                BAR
-              </span>
-            )}
-            {isKitchen && (
-              <span className="flex items-center gap-1 px-2 py-0.5 bg-[#8B5CF6]/20 text-[#8B5CF6] text-xs font-semibold rounded">
-                <ChefHat className="w-3 h-3" />
-                COZINHA
-              </span>
-            )}
-          </div>
         </div>
 
         {/* Tempo */}
@@ -123,11 +116,19 @@ export function OrderCard({ order, onUpdateStatus, isUpdating }: OrderCardProps)
         </div>
       </div>
 
+      {/* Observação */}
+      {order.note && (
+        <div className="mb-3 p-2 bg-[#1F2937] rounded-lg">
+          <p className="text-xs text-[#9CA3AF] mb-1">Observação:</p>
+          <p className="text-sm text-[#E5E7EB]">{order.note}</p>
+        </div>
+      )}
+
       {/* Itens do pedido */}
       <div className="space-y-1.5 mb-4">
-        {order.items.map((item) => (
+        {order.items.map((item, idx) => (
           <div
-            key={item.id}
+            key={idx}
             className="flex items-center justify-between text-sm"
           >
             <span className="text-[#E5E7EB]">
@@ -153,18 +154,6 @@ export function OrderCard({ order, onUpdateStatus, isUpdating }: OrderCardProps)
 
         {/* Botões de ação */}
         <div className="flex items-center gap-2">
-          {/* Botão cancelar (apenas para NEW e IN_PROGRESS) */}
-          {(order.status === 'NEW' || order.status === 'IN_PROGRESS') && (
-            <button
-              onClick={() => onUpdateStatus(order.id, 'CANCELED')}
-              disabled={isUpdating}
-              className="p-2 text-[#FF1744] hover:bg-[#FF1744]/10 rounded-lg transition-colors disabled:opacity-50"
-              title="Cancelar pedido"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-
           {/* Botão de ação principal */}
           {action && (
             <button
@@ -184,7 +173,7 @@ export function OrderCard({ order, onUpdateStatus, isUpdating }: OrderCardProps)
           {/* Status final (sem ação) */}
           {!action && (
             <span className={`px-3 py-1.5 rounded-lg text-sm font-medium ${colors.bg} ${colors.text}`}>
-              {STATUS_LABELS[order.status]}
+              {STATUS_LABELS[order.kdsStatus]}
             </span>
           )}
         </div>

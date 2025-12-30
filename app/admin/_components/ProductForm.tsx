@@ -21,12 +21,16 @@ interface ProductFormProps {
     priceCapCents?: number;
   };
   mode?: 'create' | 'edit';
+  onSuccess?: () => void;
+  onCancel?: () => void;
 }
 
 export function ProductForm({
   categories,
   initialData,
   mode = 'create',
+  onSuccess,
+  onCancel,
 }: ProductFormProps) {
   const router = useRouter();
 
@@ -181,11 +185,18 @@ export function ProductForm({
 
       setSuccess(true);
       
-      // Redireciona após 1.5s
-      setTimeout(() => {
-        router.push('/admin/products');
-        router.refresh();
-      }, 1500);
+      // Se tem callback onSuccess (modal), chama ele
+      if (onSuccess) {
+        setTimeout(() => {
+          onSuccess();
+        }, 1000);
+      } else {
+        // Senão, redireciona (página normal)
+        setTimeout(() => {
+          router.push('/admin/products');
+          router.refresh();
+        }, 1500);
+      }
     } catch (err: any) {
       console.error('[ProductForm] Submit error:', err);
       setError('Erro ao conectar com o servidor');
@@ -460,7 +471,13 @@ export function ProductForm({
         </button>
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={() => {
+            if (onCancel) {
+              onCancel();
+            } else {
+              router.back();
+            }
+          }}
           className="px-6 py-2 bg-[#1F2937] text-[#E5E7EB] rounded-lg hover:bg-[#374151] transition-colors"
         >
           Cancelar

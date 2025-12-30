@@ -1,18 +1,27 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { Search, Wifi, WifiOff, RefreshCw, ShoppingCart } from 'lucide-react';
 import { useMarketStream } from '@/lib/context';
 
 interface MenuHeaderProps {
   tableId: string | null;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  showDebug?: boolean;
+  cartCount?: number;
+  onCartClick?: () => void;
 }
 
-export function MenuHeader({ tableId, searchQuery, onSearchChange }: MenuHeaderProps) {
+export function MenuHeader({
+  tableId,
+  searchQuery,
+  onSearchChange,
+  showDebug = false,
+  cartCount = 0,
+  onCartClick,
+}: MenuHeaderProps) {
   const { isConnected, isReconnecting, snapshot } = useMarketStream();
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 bg-[#0B0F14] border-b border-[#1F2937] safe-area-top">
@@ -30,25 +39,44 @@ export function MenuHeader({ tableId, searchQuery, onSearchChange }: MenuHeaderP
             )}
           </div>
 
-          {/* Status de conexão */}
           <div className="flex items-center gap-2">
-            {isReconnecting ? (
-              <div className="flex items-center gap-1.5 px-2 py-1 bg-[#F59E0B]/10 rounded-full">
-                <RefreshCw className="w-3.5 h-3.5 text-[#F59E0B] animate-spin" />
-                <span className="text-xs text-[#F59E0B]">Reconectando...</span>
-              </div>
-            ) : isConnected ? (
-              <div className="flex items-center gap-1.5 px-2 py-1 bg-[#00E676]/10 rounded-full">
-                <Wifi className="w-3.5 h-3.5 text-[#00E676]" />
-                <span className="text-xs text-[#00E676] font-market-medium">
-                  Tick #{snapshot?.tick ?? 0}
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 px-2 py-1 bg-[#FF1744]/10 rounded-full">
-                <WifiOff className="w-3.5 h-3.5 text-[#FF1744]" />
-                <span className="text-xs text-[#FF1744]">Offline</span>
-              </div>
+            {/* Carrinho */}
+            {onCartClick && (
+              <button
+                onClick={onCartClick}
+                className="relative p-2 text-[#9CA3AF] hover:text-[#F59E0B] hover:bg-[#1F2937] rounded-lg transition-colors"
+              >
+                <ShoppingCart className="w-5 h-5" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-[#F59E0B] text-[#0B0F14] text-xs font-bold rounded-full flex items-center justify-center">
+                    {cartCount}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {/* Status de conexão (apenas em debug) */}
+            {showDebug && (
+              <>
+                {isReconnecting ? (
+                  <div className="flex items-center gap-1.5 px-2 py-1 bg-[#F59E0B]/10 rounded-full">
+                    <RefreshCw className="w-3.5 h-3.5 text-[#F59E0B] animate-spin" />
+                    <span className="text-xs text-[#F59E0B]">Reconectando...</span>
+                  </div>
+                ) : isConnected ? (
+                  <div className="flex items-center gap-1.5 px-2 py-1 bg-[#00E676]/10 rounded-full">
+                    <Wifi className="w-3.5 h-3.5 text-[#00E676]" />
+                    <span className="text-xs text-[#00E676] font-market-medium">
+                      Tick #{snapshot?.tick ?? 0}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 px-2 py-1 bg-[#FF1744]/10 rounded-full">
+                    <WifiOff className="w-3.5 h-3.5 text-[#FF1744]" />
+                    <span className="text-xs text-[#FF1744]">Offline</span>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

@@ -26,6 +26,26 @@ export interface CreateProductResult {
   code?: string;
 }
 
+export interface UpdateProductInput {
+  sku?: string;
+  ticker?: string;
+  tickerSource?: 'AUTO' | 'MANUAL';
+  name?: string;
+  description?: string | null;
+  category?: string;
+  isActive?: boolean;
+  basePriceCents?: number;
+  priceFloorCents?: number;
+  priceCapCents?: number;
+}
+
+export interface UpdateProductResult {
+  success: boolean;
+  productId?: string;
+  error?: string;
+  code?: string;
+}
+
 /**
  * Valida regras de preço: floor ≤ base ≤ cap e floor < cap
  */
@@ -210,6 +230,177 @@ export async function createProduct(
 }
 
 /**
+ * Atualiza produto existente
+ * Valida regras de negócio antes de atualizar
+ */
+export async function updateProduct(
+  productId: string,
+  input: UpdateProductInput
+): Promise<UpdateProductResult> {
+  try {
+    // 1. Verifica se produto existe
+    const existingProduct = await prisma.products.findUnique({
+      where: { id: productId },
+      include: { price_states: true },
+    });
+
+    if (!existingProduct) {
+      return {
+        success: false,
+        error: 'Produto não encontrado',
+        code: 'PRODUCT_NOT_FOUND',
+      };
+    }
+
+    // 2. Validação de ticker se fornecido
+    if (input.ticker !== undefined) {
+      const tickerNormalized = normalizeTicker(input.ticker);
+      const tickerValidation = validateTickerFormat(tickerNormalized);
+      if (!tickerValidation.valid) {
+        return {
+          success: false,
+          error: tickerValidation.error,
+          code: 'INVALID_TICKER',
+        };
+      }
+
+      // Verifica unicidade (excluindo o próprio produto)
+      const existingTicker = await prisma.products.findUnique({
+        where: { ticker: tickerNormalized },
+        select: { id: true },
+      });
+
+      if (existingTicker && existingTicker.id !== productId) {
+        return {
+          success: false,
+          error: `Ticker "${tickerNormalized}" já está em uso`,
+          code: 'DUPLICATE_TICKER',
+        };
+      }
+    }
+
+    // 3. Validação de SKU se fornecido
+    if (input.sku !== undefined) {
+      const existingSku = await prisma.products.findUnique({
+        where: { sku: input.sku.trim() },
+        select: { id: true },
+      });
+
+      if (existingSku && existingSku.id !== productId) {
+        return {
+          success: false,
+          error: `SKU "${input.sku}" já está em uso`,
+          code: 'DUPLICATE_SKU',
+        };
+      }
+    }
+
+    // 4. Validação de preços
+    const floor = input.priceFloorCents ?? existingProduct.price_floor_cents;
+    const base = input.basePriceCents ?? existingProduct.base_price_cents;
+    const cap = input.priceCapCents ?? existingProduct.price_cap_cents;
+
+    const priceValidation = validatePriceRange(floor, base, cap);
+    if (!priceValidation.valid) {
+      return {
+        success: false,
+        error: priceValidation.error,
+        code: 'INVALID_PRICE_RANGE',
+      };
+    }
+
+    // 5. Validação de campos obrigatórios se fornecidos
+    if (input.name !== undefined && !input.name.trim()) {
+      return {
+        success: false,
+        error: 'Nome não pode ser vazio',
+        code: 'MISSING_NAME',
+      };
+    }
+
+    if (input.category !== undefined && !input.category.trim()) {
+      return {
+        success: false,
+        error: 'Categoria não pode ser vazia',
+        code: 'MISSING_CATEGORY',
+      };
+    }
+
+    // 6. Atualiza produto
+    const updatedProduct = await prisma.products.update({
+      where: { id: productId },
+      data: {
+        ...(input.sku !== undefined && { sku: input.sku.trim() }),
+        ...(input.ticker !== undefined && {
+          ticker: normalizeTicker(input.ticker),
+        }),
+        ...(input.tickerSource !== undefined && {
+          ticker_source: input.tickerSource,
+        }),
+        ...(input.name !== undefined && { name: input.name.trim() }),
+        ...(input.description !== undefined && {
+          description: input.description?.trim() || null,
+        }),
+        ...(input.category !== undefined && {
+          category: input.category.trim(),
+        }),
+        ...(input.isActive !== undefined && { is_active: input.isActive }),
+        ...(input.basePriceCents !== undefined && {
+          base_price_cents: input.basePriceCents,
+        }),
+        ...(input.priceFloorCents !== undefined && {
+          price_floor_cents: input.priceFloorCents,
+        }),
+        ...(input.priceCapCents !== undefined && {
+          price_cap_cents: input.priceCapCents,
+        }),
+      },
+    });
+
+    return {
+      success: true,
+      productId: updatedProduct.id,
+    };
+  } catch (error: any) {
+    // Tratamento de erros do Prisma
+    if (error.code === 'P2002') {
+      // Unique constraint violation
+      const target = error.meta?.target as string[] | undefined;
+      if (target?.includes('sku')) {
+        return {
+          success: false,
+          error: `SKU "${input.sku}" já está em uso`,
+          code: 'DUPLICATE_SKU',
+        };
+      }
+      if (target?.includes('ticker')) {
+        return {
+          success: false,
+          error: `Ticker já está em uso`,
+          code: 'DUPLICATE_TICKER',
+        };
+      }
+    }
+
+    if (error.code === 'P2025') {
+      // Record not found
+      return {
+        success: false,
+        error: 'Produto não encontrado',
+        code: 'PRODUCT_NOT_FOUND',
+      };
+    }
+
+    console.error('[updateProduct] Database error:', error);
+    return {
+      success: false,
+      error: 'Erro ao atualizar produto no banco de dados',
+      code: 'DATABASE_ERROR',
+    };
+  }
+}
+
+/**
  * Busca todas as categorias únicas do banco
  */
 export async function getAllCategoriesFromDB(): Promise<string[]> {
@@ -309,4 +500,3 @@ export async function getProductsWithPricesFromDB(): Promise<ProductWithPrice[]>
     return [];
   }
 }
-

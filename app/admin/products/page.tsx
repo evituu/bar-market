@@ -1,7 +1,5 @@
 import { AdminLayout, ProductsTable } from '../_components';
 import { prisma } from '@/lib/prisma';
-import Link from 'next/link';
-import { Plus } from 'lucide-react';
 
 export default async function ProductsPage() {
   // Busca produtos do banco
@@ -60,20 +58,11 @@ export default async function ProductsPage() {
   return (
     <AdminLayout>
       {/* Page Header */}
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[#E5E7EB]">Produtos</h1>
-          <p className="text-sm text-[#9CA3AF] mt-1">
-            Gerencie o catálogo de produtos do mercado
-          </p>
-        </div>
-        <Link
-          href="/admin/products/new"
-          className="flex items-center gap-2 px-4 py-2 bg-[#2563EB] text-white rounded-lg hover:bg-[#1D4ED8] transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Novo Produto</span>
-        </Link>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-[#E5E7EB]">Produtos</h1>
+        <p className="text-sm text-[#9CA3AF] mt-1">
+          Gerencie o catálogo de produtos do mercado
+        </p>
       </div>
 
       {/* Products Table */}

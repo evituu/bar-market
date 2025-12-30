@@ -3,19 +3,41 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AdminLayout } from '../_components';
 import { OrdersFilters, OrdersKanban } from './_components';
-import type { Order, OrderStatus, PrepArea } from '@/lib/stores/ordersStore';
 
-const POLLING_INTERVAL = 3000; // 3 segundos
+type KdsStatus = 'QUEUED' | 'IN_PROGRESS' | 'READY' | 'DELIVERED';
+
+interface Order {
+  id: string;
+  sessionId: string;
+  tableCode: string | null;
+  status: string;
+  kdsStatus: KdsStatus;
+  totalCents: number;
+  note: string | null;
+  confirmedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: Array<{
+    id: string;
+    productId: string;
+    productName: string;
+    productTicker: string;
+    qty: number;
+    lockedPriceCents: number;
+    lineTotalCents: number;
+  }>;
+}
+
+const POLLING_INTERVAL = 2000; // 2 segundos
 
 export default function PedidosPage() {
   // Estados
   const [orders, setOrders] = useState<Order[]>([]);
-  const [counts, setCounts] = useState<Record<OrderStatus, number>>({
-    NEW: 0,
+  const [counts, setCounts] = useState<Record<KdsStatus, number>>({
+    QUEUED: 0,
     IN_PROGRESS: 0,
     READY: 0,
     DELIVERED: 0,
-    CANCELED: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -23,7 +45,6 @@ export default function PedidosPage() {
 
   // Filtros
   const [searchQuery, setSearchQuery] = useState('');
-  const [prepAreaFilter, setPrepAreaFilter] = useState<PrepArea | 'ALL'>('ALL');
   const [showDelivered, setShowDelivered] = useState(false);
 
   // Fetch pedidos
@@ -32,11 +53,9 @@ export default function PedidosPage() {
 
     try {
       const params = new URLSearchParams();
-      if (prepAreaFilter !== 'ALL') {
-        params.set('prepArea', prepAreaFilter);
-      }
+      params.set('status', 'CONFIRMED');
       if (searchQuery.trim()) {
-        params.set('tableId', searchQuery.trim());
+        params.set('tableCode', searchQuery.trim());
       }
 
       const response = await fetch(`/api/admin/orders?${params.toString()}`);
@@ -45,11 +64,10 @@ export default function PedidosPage() {
       const data = await response.json();
       setOrders(data.orders || []);
       setCounts(data.counts || {
-        NEW: 0,
+        QUEUED: 0,
         IN_PROGRESS: 0,
         READY: 0,
         DELIVERED: 0,
-        CANCELED: 0,
       });
     } catch (error) {
       console.error('[PedidosPage] Erro:', error);
@@ -57,7 +75,7 @@ export default function PedidosPage() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [prepAreaFilter, searchQuery]);
+  }, [searchQuery]);
 
   // Polling automático
   useEffect(() => {
@@ -66,21 +84,20 @@ export default function PedidosPage() {
     return () => clearInterval(interval);
   }, [fetchOrders]);
 
-  // Atualizar status
-  const handleUpdateStatus = useCallback(async (orderId: string, newStatus: OrderStatus) => {
+  // Atualizar kds_status
+  const handleUpdateStatus = useCallback(async (orderId: string, newStatus: KdsStatus) => {
     setUpdatingOrderId(orderId);
 
     try {
       const response = await fetch(`/api/admin/orders/${orderId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ kdsStatus: newStatus }),
       });
 
       if (!response.ok) {
         const error = await response.json();
         console.error('[PedidosPage] Erro ao atualizar:', error);
-        // TODO: Toast de erro
         return;
       }
 
@@ -88,7 +105,7 @@ export default function PedidosPage() {
       setOrders((prev) =>
         prev.map((order) =>
           order.id === orderId
-            ? { ...order, status: newStatus, updatedAt: new Date().toISOString() }
+            ? { ...order, kdsStatus: newStatus, updatedAt: new Date().toISOString() }
             : order
         )
       );
@@ -100,7 +117,7 @@ export default function PedidosPage() {
 
         return {
           ...prev,
-          [oldOrder.status]: Math.max(0, prev[oldOrder.status] - 1),
+          [oldOrder.kdsStatus]: Math.max(0, prev[oldOrder.kdsStatus] - 1),
           [newStatus]: prev[newStatus] + 1,
         };
       });
@@ -114,9 +131,7 @@ export default function PedidosPage() {
   // Filtra pedidos para exibição
   const filteredOrders = orders.filter((order) => {
     // Esconde entregues se toggle desativado
-    if (!showDelivered && order.status === 'DELIVERED') return false;
-    // Esconde cancelados sempre
-    if (order.status === 'CANCELED') return false;
+    if (!showDelivered && order.kdsStatus === 'DELIVERED') return false;
     return true;
   });
 
@@ -127,7 +142,7 @@ export default function PedidosPage() {
         <div>
           <h1 className="text-2xl font-bold text-[#E5E7EB]">Pedidos</h1>
           <p className="text-sm text-[#6B7280] mt-1">
-            Gerencie os pedidos em tempo real
+            Fila única de pedidos confirmados
           </p>
         </div>
 
@@ -144,8 +159,6 @@ export default function PedidosPage() {
       <OrdersFilters
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        prepAreaFilter={prepAreaFilter}
-        onPrepAreaChange={setPrepAreaFilter}
         showDelivered={showDelivered}
         onToggleDelivered={() => setShowDelivered((prev) => !prev)}
         isRefreshing={isRefreshing}

@@ -7,11 +7,10 @@ import {
   Search,
   Filter,
   Pencil,
-  ToggleLeft,
-  ToggleRight,
 } from 'lucide-react';
-import type { ProductWithPrice } from '@/data';
+import type { ProductWithPrice } from '@/lib/domain/products';
 import { formatCurrency, formatPriceChange } from '@/data';
+import { EditProductModal } from './EditProductModal';
 
 interface ProductsTableProps {
   products: ProductWithPrice[];
@@ -22,6 +21,8 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [editingProduct, setEditingProduct] = useState<ProductWithPrice | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const filtered = products.filter((p) => {
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
@@ -120,7 +121,7 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
                 Status
               </th>
               <th className="px-4 py-3 text-center text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider">
-                Ações
+                Editar
               </th>
             </tr>
           </thead>
@@ -189,30 +190,17 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
                       {product.isActive ? 'Ativo' : 'Inativo'}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-2">
-                      <Link
-                        href={`/admin/products/${product.id}`}
-                        className="p-2 text-[#9CA3AF] hover:text-[#F59E0B] hover:bg-[#1F2937] rounded-lg transition-colors"
-                        title="Editar"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Link>
-                      <button
-                        className={`p-2 rounded-lg transition-colors ${
-                          product.isActive
-                            ? 'text-[#00E676] hover:bg-[#1F2937]'
-                            : 'text-[#FF1744] hover:bg-[#1F2937]'
-                        }`}
-                        title={product.isActive ? 'Desativar' : 'Ativar'}
-                      >
-                        {product.isActive ? (
-                          <ToggleRight className="w-5 h-5" />
-                        ) : (
-                          <ToggleLeft className="w-5 h-5" />
-                        )}
-                      </button>
-                    </div>
+                  <td className="px-4 py-3 text-center">
+                    <button
+                      onClick={() => {
+                        setEditingProduct(product);
+                        setIsModalOpen(true);
+                      }}
+                      className="p-2 text-[#9CA3AF] hover:text-[#F59E0B] hover:bg-[#1F2937] rounded-lg transition-colors"
+                      title="Editar"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
                   </td>
                 </tr>
               );
@@ -233,6 +221,21 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
           {filtered.length} de {products.length} produtos
         </p>
       </div>
+
+      {/* Modal de Edição */}
+      <EditProductModal
+        isOpen={isModalOpen}
+        product={editingProduct}
+        categories={categories}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingProduct(null);
+        }}
+        onSuccess={() => {
+          // Recarrega a página para atualizar dados
+          window.location.reload();
+        }}
+      />
     </div>
   );
 }
